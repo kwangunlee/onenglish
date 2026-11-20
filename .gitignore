@@ -1,0 +1,33 @@
+# ── 비밀 정보: 절대 커밋 금지 ──
+.streamlit/secrets.toml
+.env
+*.pem
+*.key
+# 예전 구조의 잔재가 다시 들어오는 것 방지
+*credentials*.json
+*firebase-adminsdk*.json
+config.json
+users.json
+
+# ── 로컬 데이터 (아이 대화 기록이 들어있음) ──
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# ── 캐릭터 영상 (용량 큼 — 나중에 Git LFS 고려) ──
+assets/video/
+
+# ── 에디터 / OS ──
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+voice_samples/

@@ -1,0 +1,141 @@
+"""
+설정.
+
+중요: 이 모듈(그리고 core/ 안의 모든 모듈)은 streamlit 을 import 하지 않습니다.
+설정값은 전부 환경변수에서만 읽습니다. app.py 가 시작할 때 st.secrets 의 값을
+환경변수로 옮겨주고, core/ 는 그걸 읽습니다.
+
+이렇게 분리해두면 나중에 같은 core/ 를 MCP 서버나 다른 프론트엔드(CLI, API)에
+그대로 얹을 수 있습니다. core/ 가 streamlit 에 의존하면 그게 불가능해집니다.
+"""
+
+import os
+from pathlib import Path
+
+# ── 경로 (실행 위치와 무관하게 항상 동일) ─────────────────────────
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+PACKS_DIR = DATA_DIR / "packs"
+ASSETS_DIR = BASE_DIR / "assets"
+LEVELS_PATH = DATA_DIR / "levels.json"
+DB_PATH = DATA_DIR / "onenglish.db"
+
+
+def _get(name: str, default: str = "") -> str:
+    return os.environ.get(name, "").strip() or default
+
+
+def _get_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+
+
+# ── 비밀 ─────────────────────────────────────────────────────────
+def openai_api_key() -> str:
+    """함수로 둔 이유: app.py 가 환경변수를 넣기 전에 import 될 수 있으므로,
+    모듈 로드 시점이 아니라 실제 호출 시점에 읽어야 합니다."""
+    return _get("OPENAI_API_KEY")
+
+
+def google_tts_key() -> str:
+    """Google Text-to-Speech API 키. 서비스 계정 JSON 이 아니라 API 키입니다."""
+    key = _get("GOOGLE_TTS_KEY")
+    if not key or any(m in key for m in TEMPLATE_MARKERS):
+        return ""
+    return key
+
+
+def app_password() -> str:
+    """앱에 들어올 때 묻는 비밀번호. 비워두면 묻지 않습니다."""
+    return _get("APP_PASSWORD")
+
+
+def parent_password() -> str:
+    """기록 보기(대화 로그·기억·학습기록)를 열 때 묻는 비밀번호.
+
+    앱 비밀번호와 다릅니다. 아이는 앱 비밀번호만 알면 되고, 기록은 이 비밀번호를
+    아는 사람만 볼 수 있습니다. 비워두면 누구나 기록을 볼 수 있습니다."""
+    return _get("PARENT_PASSWORD")
+
+
+# ── 모델 ─────────────────────────────────────────────────────────
+def chat_model() -> str:
+    return _get("CHAT_MODEL", "gpt-4o-mini")
+
+
+def stt_model() -> str:
+    return _get("STT_MODEL", "whisper-1")
+
+
+def tts_model() -> str:
+    return _get("TTS_MODEL", "gpt-4o-mini-tts")
+
+
+# ── 동작 파라미터 ────────────────────────────────────────────────
+def max_history_turns() -> int:
+    return _get_int("MAX_HISTORY_TURNS", 12)
+
+
+def max_reply_tokens() -> int:
+    return _get_int("MAX_REPLY_TOKENS", 120)
+
+
+def memory_recall_count() -> int:
+    return _get_int("MEMORY_RECALL_COUNT", 6)
+
+
+# ── 목소리 일관성 ↔ 생기 ─────────────────────────────────────────
+# gpt-4o-mini-tts 는 지시문을 매번 다시 해석해서 연기합니다. 그래서 지시문이
+# 매 호출마다 달라지면 생기는 살지만 음색이 미세하게 흔들립니다. 반대로 지시문을
+# 고정하면 음색은 일정하지만 어떤 얘기를 들어도 같은 톤이 됩니다.
+# 정답이 없는 맞바꿈이라 설정으로 뺐습니다.
+#
+#   stable     : 지시문 고정. 음색이 가장 일정하고, 톤 변화는 없음
+#   balanced   : 기분(8종 중 하나)만 반영. 기본값
+#   expressive : 기분 + 아이가 방금 한 말까지 반영. 가장 생생하지만 가장 흔들림
+VOICE_MODES = ("stable", "balanced", "expressive")
+
+
+def voice_mode() -> str:
+    value = _get("VOICE_MODE", "balanced").lower()
+    return value if value in VOICE_MODES else "balanced"
+
+
+# ── 음성 프로바이더 ──────────────────────────────────────────────
+# openai : 연기 지시를 반영 → 생기 있음, 음색이 미세하게 흔들림
+# google : 텍스트와 속도만  → 음색이 일정함, 톤 변화 없음
+# 캐릭터 정의의 "tts_provider" 로 캐릭터마다 따로 지정할 수도 있습니다.
+def tts_provider() -> str:
+    return _get("TTS_PROVIDER", "openai").lower()
+
+
+MISSING_GOOGLE_KEY_MESSAGE = """Google 음성을 쓰려면 GOOGLE_TTS_KEY 가 필요합니다.
+
+1. https://console.cloud.google.com 에서 "Cloud Text-to-Speech API" 를 사용 설정하세요.
+2. 사용자 인증 정보 → API 키 만들기.
+3. 만든 키는 "API 제한"에서 Text-to-Speech 만 허용하도록 꼭 제한하세요.
+4. .streamlit/secrets.toml 의 GOOGLE_TTS_KEY 에 넣고 앱을 다시 실행하세요.
+
+서비스 계정 JSON 파일은 필요하지 않습니다. API 키 하나면 됩니다.
+"""
+
+
+# ── 키 확인 ──────────────────────────────────────────────────────
+TEMPLATE_MARKERS = ("여기에", "붙여넣기", "YOUR_", "sk-xxx")
+
+
+def key_is_configured() -> bool:
+    key = openai_api_key()
+    if not key:
+        return False
+    return not any(m in key for m in TEMPLATE_MARKERS)
+
+
+MISSING_KEY_MESSAGE = """OpenAI API 키가 설정되지 않았습니다.
+
+1. `.streamlit/secrets.toml.example` 파일을 복사해서 `.streamlit/secrets.toml` 로 이름을 바꾸세요.
+2. https://platform.openai.com/api-keys 에서 키를 발급받아 `OPENAI_API_KEY` 에 붙여넣으세요.
+3. 앱을 다시 실행하세요.
+"""

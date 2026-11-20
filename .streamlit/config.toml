@@ -1,0 +1,13 @@
+[theme]
+primaryColor = "#7F77DD"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F2FB"
+textColor = "#2C2C2A"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# 업로드되는 녹음 파일 크기 제한 (MB)
+maxUploadSize = 20
