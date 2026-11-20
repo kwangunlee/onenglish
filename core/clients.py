@@ -106,6 +106,27 @@ def _gemini_error(response) -> str:
 
     code = response.status_code
 
+    # "API key not valid" 는 400 으로 오는데 내용은 키 문제입니다.
+    # 400 을 "요청이 잘못됐어요" 로만 안내하면 원인을 찾기 어려워서 먼저 거릅니다.
+    looks_like_key = any(
+        s in detail.lower() for s in
+        ("api key not valid", "api_key_invalid", "invalid api key",
+         "api key expired", "api keys are not supported")
+    )
+
+    if looks_like_key:
+        return (
+            "Google API 키가 올바르지 않아요.\n"
+            "  이 키로는 Gemini 를 쓸 수 없습니다. 보통 아래 둘 중 하나입니다.\n"
+            "  · 음성합성(Text-to-Speech) 전용으로 만든 키인 경우\n"
+            "  · Generative Language API 가 꺼져 있는 경우\n"
+            "\n"
+            "  가장 쉬운 해결: https://aistudio.google.com/apikey 에서\n"
+            "  'Create API key' 로 새 키를 받아 GOOGLE_API_KEY 에 넣으세요.\n"
+            "  (AI Studio 키는 Gemini 가 처음부터 켜져 있습니다)\n"
+            f"\n  (원문: {detail})"
+        )
+
     if code in (401, 403) or status == "PERMISSION_DENIED":
         return (
             "Google API 키가 거부됐어요.\n"
