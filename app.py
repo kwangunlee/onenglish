@@ -175,14 +175,34 @@ CSS = """
                   line-height: 1.5; margin: 0; color: #5A52B5; }
   .oe-mic-hint { text-align: center; font-size: .85rem; line-height: 1.6;
                  margin: 0 0 .5rem 0; color: #8b8a86; }
-  .st-key-oe_mic div[data-testid="stAudioInput"] { max-width: 480px;
-                                                   margin: 0 auto; }
-  .st-key-oe_mic div[data-testid="stAudioInput"] > div { min-height: 72px;
-                                                         border-radius: 999px; }
-  .st-key-oe_mic div[data-testid="stAudioInput"] button { transform: scale(1.5);
-                                                          transform-origin: center; }
-  .st-key-oe_mic div[data-testid="stAudioInput"] svg { width: 26px;
-                                                       height: 26px; }
+  /* 막대 모양을 없애고 세로로 쌓습니다: 큰 동그란 버튼 → 파동 → 시간 */
+  .st-key-oe_mic [data-testid="stAudioInput"],
+  .st-key-oe_mic [data-testid="stAudioInput"] > div {
+      display: flex; flex-direction: column; align-items: center;
+      gap: .7rem; background: transparent; border: none;
+      box-shadow: none; padding: 0; min-height: 0; width: 100%;
+  }
+  /* 동그란 마이크 버튼 */
+  .st-key-oe_mic [data-testid="stAudioInputActionButton"] {
+      width: 108px !important; height: 108px !important;
+      min-width: 108px !important; flex: 0 0 auto !important;
+      border-radius: 50% !important; background: #7F77DD !important;
+      color: #fff !important; border: none !important;
+      box-shadow: 0 6px 20px rgba(127,119,221,.38);
+      transition: background .15s, transform .1s;
+  }
+  .st-key-oe_mic [data-testid="stAudioInputActionButton"]:hover {
+      background: #6A61D0 !important; }
+  .st-key-oe_mic [data-testid="stAudioInputActionButton"]:active {
+      transform: scale(.95); }
+  .st-key-oe_mic [data-testid="stAudioInputActionButton"] * {
+      color: #fff !important; fill: #fff !important;
+      font-size: 46px !important; width: 46px; height: 46px; }
+  /* 파동은 버튼 아래에 작게 */
+  .st-key-oe_mic [data-testid="stAudioInputWaveSurfer"] {
+      width: 100%; max-width: 300px; opacity: .8; }
+  .st-key-oe_mic [data-testid="stAudioInputWaveformTimeCode"] {
+      font-size: .85rem; color: #8b8a86; }
   .oe-mem { padding: .45rem .7rem; border-left: 3px solid #AFA9EC;
             background: #F7F6FD; margin-bottom: .4rem; font-size: .93rem; }
   .oe-mem small { color: #6b6a66; }
