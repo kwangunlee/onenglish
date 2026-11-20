@@ -167,6 +167,22 @@ CSS = """
                   margin: .4rem 0 0 0; }
   .oe-card-tag { color: #6b6a66; font-size: .85rem; line-height: 1.6;
                  margin: 0 0 .3rem 0; }
+  /* ── 마이크 ──────────────────────────────────────────────
+     아이가 가장 많이 누르는 버튼이라 가운데에 크게 둡니다.
+     스트림릿 내부 구조가 바뀔 수 있어 선택자를 여러 겹으로 둡니다. */
+  .st-key-oe_mic { margin: .6rem auto 0; max-width: 480px; }
+  .oe-mic-label { text-align: center; font-size: 1.15rem; font-weight: 700;
+                  line-height: 1.5; margin: 0; color: #5A52B5; }
+  .oe-mic-hint { text-align: center; font-size: .85rem; line-height: 1.6;
+                 margin: 0 0 .5rem 0; color: #8b8a86; }
+  .st-key-oe_mic div[data-testid="stAudioInput"] { max-width: 480px;
+                                                   margin: 0 auto; }
+  .st-key-oe_mic div[data-testid="stAudioInput"] > div { min-height: 72px;
+                                                         border-radius: 999px; }
+  .st-key-oe_mic div[data-testid="stAudioInput"] button { transform: scale(1.5);
+                                                          transform-origin: center; }
+  .st-key-oe_mic div[data-testid="stAudioInput"] svg { width: 26px;
+                                                       height: 26px; }
   .oe-mem { padding: .45rem .7rem; border-left: 3px solid #AFA9EC;
             background: #F7F6FD; margin-bottom: .4rem; font-size: .93rem; }
   .oe-mem small { color: #6b6a66; }
@@ -468,11 +484,19 @@ def screen_chat() -> None:
                     )
     st.session_state.speak_index = None
 
-    st.caption("마이크 버튼을 누르고 말한 다음, 다시 눌러서 멈추면 돼요.")
-    recording = st.audio_input(
-        "말하기", key=f"mic_{st.session_state.mic_round}",
-        label_visibility="collapsed",
-    )
+    # 마이크는 아이가 가장 많이 누르는 버튼이라 화면 가운데에 크게 둡니다.
+    # 실제 확대는 CSS 에서 합니다 (.st-key-oe_mic). 스트림릿 위젯은
+    # st.markdown 으로 감싸지지 않기 때문에 컨테이너 key 로 잡습니다.
+    with st.container(key="oe_mic"):
+        st.markdown(
+            '<p class="oe-mic-label">눌러서 말하기</p>'
+            '<p class="oe-mic-hint">말이 끝나면 한 번 더 누르세요</p>',
+            unsafe_allow_html=True,
+        )
+        recording = st.audio_input(
+            "말하기", key=f"mic_{st.session_state.mic_round}",
+            label_visibility="collapsed",
+        )
 
     typed = st.chat_input("아니면 여기에 써도 돼요")
 
