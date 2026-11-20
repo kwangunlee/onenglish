@@ -9,7 +9,10 @@
 걸어두었습니다.
 """
 
+import hashlib
+import hmac
 import json
+import os
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -17,6 +20,9 @@ from datetime import datetime, timezone
 from typing import Any, Iterator
 
 from . import config
+
+# 비밀번호는 평문으로 저장하지 않습니다. 돌려받을 수 없는 해시만 남깁니다.
+_PBKDF2_ROUNDS = 200_000
 
 SCHEMA = """
 PRAGMA journal_mode = WAL;
@@ -27,7 +33,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     name          TEXT NOT NULL UNIQUE,
     level         TEXT NOT NULL DEFAULT 'kids',
     created_at    TEXT NOT NULL,
-    last_seen_at  TEXT
+    last_seen_at  TEXT,
+    password_hash TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -102,6 +109,44 @@ def connect() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """예전 버전에서 만들어진 DB 에 새 컬럼을 더합니다.
+    이미 쌓인 대화와 기억은 그대로 둡니다."""
+    existing = {r["name"] for r in conn.execute("PRAGMA table_info(profiles)")}
+    if "password_hash" not in existing:
+        conn.execute("ALTER TABLE profiles ADD COLUMN password_hash TEXT")
+
+
+# ── 비밀번호 ─────────────────────────────────────────────────────
+# 평문으로 저장하지 않습니다. 저장된 값으로는 원래 비밀번호를 알 수 없습니다.
+# 그래서 잊어버리면 복구가 아니라 재설정만 가능합니다.
+
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, _PBKDF2_ROUNDS
+    )
+    return f"pbkdf2${_PBKDF2_ROUNDS}${salt.hex()}${digest.hex()}"
+
+
+def check_password(password: str, stored: str | None) -> bool:
+    if not stored:
+        return True  # 비밀번호가 없는 프로필은 그냥 통과
+    try:
+        scheme, rounds, salt_hex, digest_hex = stored.split("$")
+        if scheme != "pbkdf2":
+            return False
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"),
+            bytes.fromhex(salt_hex), int(rounds),
+        )
+    except (ValueError, TypeError):
+        return False
+    # 비교 시간이 일정한 함수를 씁니다.
+    return hmac.compare_digest(digest.hex(), digest_hex)
 
 
 def _rows(cur) -> list[dict]:
@@ -128,15 +173,20 @@ def get_profile(profile_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-def create_profile(name: str, level: str = "kids") -> dict:
+def create_profile(name: str, level: str = "kids", password: str = "") -> dict:
     name = name.strip()
     if not name:
         raise ValueError("이름을 입력해 주세요.")
+    password = (password or "").strip()
+    if not password:
+        raise ValueError("비밀번호를 입력해 주세요.")
+
     with connect() as conn:
         try:
             cur = conn.execute(
-                "INSERT INTO profiles (name, level, created_at) VALUES (?, ?, ?)",
-                (name, level, now()),
+                "INSERT INTO profiles (name, level, created_at, password_hash)"
+                " VALUES (?, ?, ?, ?)",
+                (name, level, now(), hash_password(password)),
             )
         except sqlite3.IntegrityError:
             raise ValueError(f"'{name}' 은(는) 이미 있는 이름이에요.") from None
@@ -144,6 +194,31 @@ def create_profile(name: str, level: str = "kids") -> dict:
             "SELECT * FROM profiles WHERE id = ?", (cur.lastrowid,)
         ).fetchone()
         return dict(row)
+
+
+def profile_has_password(profile: dict) -> bool:
+    return bool(profile.get("password_hash"))
+
+
+def verify_profile_password(profile_id: int, password: str) -> bool:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT password_hash FROM profiles WHERE id = ?", (profile_id,)
+        ).fetchone()
+    if row is None:
+        return False
+    return check_password(password, row["password_hash"])
+
+
+def set_profile_password(profile_id: int, password: str) -> None:
+    password = (password or "").strip()
+    if not password:
+        raise ValueError("비밀번호를 입력해 주세요.")
+    with connect() as conn:
+        conn.execute(
+            "UPDATE profiles SET password_hash = ? WHERE id = ?",
+            (hash_password(password), profile_id),
+        )
 
 
 def touch_profile(profile_id: int) -> None:

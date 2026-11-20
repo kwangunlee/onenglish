@@ -15,11 +15,34 @@
 pip install -r requirements.txt
 ```
 
-### ② OpenAI 키 넣기
+### ② 키 넣기
 
-1. `.streamlit/secrets.toml.example` 파일을 복사해서 이름을 **`secrets.toml`** 로 바꿉니다.
-2. https://platform.openai.com/api-keys 에서 키를 발급받습니다.
-3. `OPENAI_API_KEY` 줄에 붙여넣습니다.
+`.streamlit/secrets.toml.example` 을 복사해서 이름을 **`secrets.toml`** 로 바꾸고
+아래 둘 중 하나를 채웁니다.
+
+**Google (권장 — 카드 없이 무료 한도)**
+
+```toml
+AI_PROVIDER = "google"
+GOOGLE_API_KEY = "AIza..."
+```
+
+키 발급: https://aistudio.google.com/apikey → Create API key
+음성합성까지 쓰려면 같은 프로젝트에서
+[Cloud Text-to-Speech API](https://console.cloud.google.com/apis/library/texttospeech.googleapis.com)
+도 사용 설정하세요. **서비스 계정 JSON 파일은 필요 없습니다.**
+
+확인: `python tools/check_google.py`
+
+**OpenAI (선불 충전 필요)**
+
+```toml
+AI_PROVIDER = "openai"
+OPENAI_API_KEY = "sk-..."
+```
+
+키 발급: https://platform.openai.com/api-keys
+크레딧이 0 이면 키가 있어도 동작하지 않습니다.
 
 > `secrets.toml` 은 `.gitignore` 에 등록되어 있어 **깃허브에 올라가지 않습니다.**
 > 예전 버전에서 `config.json` 에 키가 그대로 노출되어 있던 문제를 막기 위한 장치입니다.
@@ -45,7 +68,23 @@ streamlit run app.py
 
 ---
 
-## 2. 쓰는 법
+## 2. 비밀번호 구조
+
+| | 누가 | 어디서 정하나 |
+|---|---|---|
+| **사람별 비밀번호** | 각자 본인 | 앱에서 이름을 만들 때 각자 입력 (기본 동작) |
+| 가입 코드 `SIGNUP_CODE` | 새 사람을 추가하는 사람 | `secrets.toml` |
+| 앱 비밀번호 `APP_PASSWORD` | 들어오는 모든 사람 | `secrets.toml` (보통 불필요) |
+| 부모 비밀번호 `PARENT_PASSWORD` | 기록을 볼 사람 | `secrets.toml` |
+
+기본 동작은 **사람별 비밀번호 하나뿐**입니다. 첫 화면에는 이름 목록만 보이고,
+이름을 고르면 그 사람의 비밀번호를 묻습니다. 비밀번호를 넣기 전에는 그 사람의
+대화 내용은 물론 대화 횟수와 기억 개수도 보이지 않습니다.
+
+비밀번호는 pbkdf2 해시로 저장되어 원래 값을 알 수 없습니다. 그래서 잊어버리면
+복구가 아니라 재설정만 가능합니다.
+
+## 3. 쓰는 법
 
 ```
 이름 고르기  →  캐릭터 고르기  →  대화  →  (왼쪽 메뉴) 대화 끝내기
@@ -67,7 +106,7 @@ streamlit run app.py
 
 ---
 
-## 3. 바꾸고 싶을 때
+## 4. 바꾸고 싶을 때
 
 거의 모든 것이 **코드 수정 없이** 파일만 고쳐서 됩니다.
 
@@ -106,9 +145,36 @@ python tools/voice_test.py --list              # 목소리 목록
 `voice_samples/` 폴더에 mp3 가 생깁니다. 들어보고 마음에 드는 것으로
 `characters.json` 의 `voice` 값을 바꾸면 됩니다.
 
-### 음성 프로바이더 바꾸기 (OpenAI ↔ Google)
+### Google ↔ OpenAI 통째로 바꾸기
 
-성격이 정반대라 취향대로 고르면 됩니다. `secrets.toml` 한 줄입니다.
+`secrets.toml` 한 줄이면 **대화·음성인식·음성합성이 모두** 바뀝니다.
+
+```toml
+AI_PROVIDER = "google"   # 또는 "openai"
+```
+
+| | `google` | `openai` |
+|---|---|---|
+| 대화 | Gemini | GPT-4o mini |
+| 음성인식 | Gemini (오디오 직접 처리) | Whisper |
+| 음성합성 | Cloud TTS (Chirp3-HD 등) | gpt-4o-mini-tts |
+| 필요한 키 | `GOOGLE_API_KEY` 하나 | `OPENAI_API_KEY` 하나 |
+| 비용 | 카드 없이 무료 한도 있음 | 선불 충전 필요 |
+
+기능별로 섞어 쓸 수도 있습니다. 비워두면 `AI_PROVIDER` 를 따릅니다.
+
+```toml
+CHAT_PROVIDER = "google"
+TTS_PROVIDER  = "openai"
+```
+
+> Google 모델 이름은 바뀔 수 있습니다. "모델을 찾을 수 없어요" 가 나오면
+> `python tools/check_google.py --models` 로 목록을 보고
+> `GEMINI_CHAT_MODEL` 을 바꾸세요.
+
+### 음성만 따로 바꾸기
+
+음성합성은 두 쪽 성격이 정반대라, 대화와 별개로 고를 수 있습니다.
 
 | | `openai` | `google` |
 |---|---|---|
@@ -212,7 +278,7 @@ python tools/make_placeholder_avatars.py
 
 ---
 
-## 4. 나중에 어른용 추가하기
+## 5. 나중에 어른용 추가하기
 
 폴더 하나만 더 만들면 됩니다. **코드는 수정하지 않습니다.**
 
@@ -227,7 +293,7 @@ data/packs/adults/
 
 ---
 
-## 5. 깃허브 + 인터넷 공개
+## 6. 깃허브 + 인터넷 공개
 
 ### 깃허브에 올리기
 
@@ -247,7 +313,8 @@ git push -u origin main
 1. https://share.streamlit.io 에서 깃허브 저장소를 연결합니다.
 2. 메인 파일로 `app.py` 를 지정합니다.
 3. **Settings → Secrets** 칸에 `secrets.toml` 의 내용을 그대로 붙여넣습니다.
-4. **`APP_PASSWORD` 를 반드시 채우세요.** 아이들의 대화 기록이 들어있습니다.
+4. **`SIGNUP_CODE` 를 채우세요.** 모르는 사람이 새 프로필을 만들어
+   API 비용을 쓰는 것을 막습니다. 기존 사용자는 영향을 받지 않습니다.
 
 코드는 한 줄도 바꾸지 않아도 됩니다. `st.secrets` 가 양쪽에서 똑같이 동작합니다.
 
@@ -259,7 +326,7 @@ git push -u origin main
 
 ---
 
-## 6. 구조
+## 7. 구조
 
 ```
 onenglish/
@@ -270,7 +337,12 @@ onenglish/
 │   ├── packs.py            캐릭터 팩 로더 (플러그인)
 │   ├── store.py            DB — 클라우드 전환 시 여기만 교체
 │   ├── llm.py              대화 생성 + 프롬프트 조립
-│   ├── stt.py              음성 → 텍스트 (Whisper)
+│   ├── clients.py          OpenAI / Google 호출 공통 바닥
+│   ├── stt.py              음성 → 텍스트 (Whisper / Gemini)
+│   ├── llm_providers/      대화 프로바이더 — 파일 추가로 확장
+│   │   ├── base.py         공통 규격
+│   │   ├── openai_chat.py  GPT
+│   │   └── gemini_chat.py  Gemini
 │   ├── tts.py              텍스트 → 음성 (프로바이더 고르기만)
 │   ├── tts_providers/      음성 프로바이더 — 파일 추가로 확장
 │   │   ├── base.py         공통 규격
@@ -284,6 +356,7 @@ onenglish/
 ├── assets/                 캐릭터 그림
 ├── tools/
     ├── make_placeholder_avatars.py   임시 그림 생성
+    ├── check_google.py               Google 연결 확인 / 모델 목록
     ├── voice_test.py                 목소리 들어보기 / 비교
     └── smoke_test.py                 화면 점검 (API 호출 없음)
 ```
@@ -299,7 +372,7 @@ python tools/smoke_test.py
 
 ---
 
-## 7. 비용
+## 8. 비용
 
 실제로 쓰는 것은 OpenAI 세 가지입니다.
 
@@ -317,10 +390,13 @@ python tools/smoke_test.py
 
 ---
 
-## 8. 잘 안 될 때
+## 9. 잘 안 될 때
 
 | 증상 | 해결 |
 |---|---|
+| `Incorrect API key` | 키가 폐기됐거나 틀림. 새로 발급 후 **앱 재시작**(Save만으론 부족할 수 있음) |
+| `모델을 찾을 수 없어요` | `python tools/check_google.py --models` 로 목록 확인 후 `GEMINI_CHAT_MODEL` 변경 |
+| Google 키가 거부됨 | Generative Language API / Cloud Text-to-Speech API 사용 설정 확인 |
 | 마이크 버튼이 안 보임 | Chrome / Edge 로 접속. 마이크 권한 허용 |
 | "설정이 필요해요" 화면 | `.streamlit/secrets.toml` 에 키가 없거나 예시 문구 그대로임 |
 | 목소리가 안 나옴 | 대화는 계속됩니다. 키 사용량 한도 또는 `TTS_MODEL` 값을 확인 |

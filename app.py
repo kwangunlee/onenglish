@@ -69,12 +69,24 @@ st.set_page_config(
 _SECRET_KEYS = (
     "OPENAI_API_KEY", "CHAT_MODEL", "STT_MODEL", "TTS_MODEL",
     "MAX_HISTORY_TURNS", "MAX_REPLY_TOKENS", "MEMORY_RECALL_COUNT",
-    "APP_PASSWORD", "PARENT_PASSWORD",
-    "VOICE_MODE", "TTS_PROVIDER", "GOOGLE_TTS_KEY",
+    "APP_PASSWORD", "PARENT_PASSWORD", "SIGNUP_CODE",
+    "VOICE_MODE",
+    # 프로바이더 선택: AI_PROVIDER 한 줄이면 대화·음성인식·음성합성이 모두 바뀝니다.
+    "AI_PROVIDER", "CHAT_PROVIDER", "STT_PROVIDER", "TTS_PROVIDER",
+    # 키
+    "GOOGLE_API_KEY", "GOOGLE_TTS_KEY",
+    # Google 모델 이름 (바뀔 수 있어 설정으로 뺐습니다)
+    "GEMINI_CHAT_MODEL", "GEMINI_STT_MODEL",
 )
 
 
 def _bridge_secrets() -> None:
+    """secrets 의 값을 환경변수로 옮깁니다.
+
+    setdefault 가 아니라 덮어씁니다. 예전에는 setdefault 였는데, 그러면
+    Streamlit Cloud 에서 Secrets 를 고쳐도 앱이 완전히 재시작되기 전까지
+    예전 값이 계속 쓰여서 "키를 바꿨는데 안 바뀐다"는 상황이 생겼습니다.
+    secrets 에 적힌 값이 항상 이깁니다."""
     try:
         secrets = st.secrets
     except Exception:
@@ -85,7 +97,7 @@ def _bridge_secrets() -> None:
         except Exception:
             continue
         if value is not None and str(value).strip():
-            os.environ.setdefault(key, str(value).strip())
+            os.environ[key] = str(value).strip()
 
 
 _bridge_secrets()
@@ -110,6 +122,7 @@ DEFAULTS = {
     "rate": 0.95,
     "authed": False,
     "parent_authed": False,
+    "unlock_profile": None,
     "flash": None,
 }
 
@@ -201,14 +214,15 @@ def screen_profiles() -> None:
         columns = st.columns(2)
         for i, profile in enumerate(profiles):
             with columns[i % 2]:
-                stats = store.profile_stats(profile["id"])
+                # 비밀번호를 넣기 전에는 이름만 보여줍니다.
+                # 대화 횟수나 기억 개수도 그 사람의 정보이기 때문입니다.
+                locked = store.profile_has_password(profile)
                 label = f"**{profile['name']}**"
-                if stats["sessions"]:
-                    label += f"  \n:gray[대화 {stats['sessions']}번 · 기억 {stats['memories']}개]"
-                else:
-                    label += "  \n:gray[처음이에요]"
-                if st.button(label, key=f"p{profile['id']}",
-                             width="stretch"):
+                label += "  \n:gray[🔒 비밀번호 필요]" if locked else "  \n:gray[바로 입장]"
+                if st.button(label, key=f"p{profile['id']}", width="stretch"):
+                    if locked:
+                        st.session_state.unlock_profile = profile
+                        go("unlock")
                     st.session_state.profile = profile
                     go("characters")
     else:
@@ -217,17 +231,68 @@ def screen_profiles() -> None:
     st.divider()
 
     with st.expander("새로운 사람 추가하기", expanded=not profiles):
+        required_code = config.signup_code()
         with st.form("new_profile", clear_on_submit=True):
             name = st.text_input("이름", placeholder="예: 민준")
+            password = st.text_input(
+                "비밀번호", type="password",
+                placeholder="숫자 4자리처럼 간단해도 괜찮아요",
+                help="다음에 들어올 때 이 비밀번호를 물어봐요. "
+                     "잊어버리면 되돌릴 수 없으니 꼭 기억해 주세요.",
+            )
+            # 공개 주소에서 모르는 사람이 프로필을 만드는 것을 막습니다.
+            # SIGNUP_CODE 를 설정하지 않으면 이 칸은 아예 나오지 않습니다.
+            code = ""
+            if required_code:
+                code = st.text_input(
+                    "가입 코드", type="password",
+                    placeholder="부모님께 받은 코드",
+                    help="새 사람을 추가할 때만 필요해요. "
+                         "한 번 만들고 나면 다시 묻지 않습니다.",
+                )
             if st.form_submit_button("추가하기", type="primary"):
-                try:
-                    created = store.create_profile(name, packs.default_level_id())
-                except ValueError as e:
-                    st.error(str(e))
+                if required_code and code != required_code:
+                    st.error("가입 코드가 맞지 않아요.")
                 else:
-                    st.session_state.profile = created
-                    flash(f"{created['name']} 님, 반가워요!", "success")
-                    go("characters")
+                    try:
+                        created = store.create_profile(
+                            name, packs.default_level_id(), password
+                        )
+                    except ValueError as e:
+                        st.error(str(e))
+                    else:
+                        st.session_state.profile = created
+                        flash(f"{created['name']} 님, 반가워요!", "success")
+                        go("characters")
+
+
+def screen_unlock() -> None:
+    """프로필 비밀번호 확인. 여기를 통과하기 전에는 그 사람의 대화 기록이
+    화면에 전혀 나오지 않습니다."""
+    profile = st.session_state.unlock_profile
+    if not profile:
+        go("profiles")
+
+    st.markdown(f'<p class="oe-title">{profile["name"]}</p>',
+                unsafe_allow_html=True)
+    st.markdown('<p class="oe-sub">비밀번호를 입력해 주세요.</p>',
+                unsafe_allow_html=True)
+
+    with st.form("unlock"):
+        value = st.text_input("비밀번호", type="password",
+                              label_visibility="collapsed",
+                              placeholder="비밀번호")
+        if st.form_submit_button("들어가기", type="primary", width="stretch"):
+            if store.verify_profile_password(profile["id"], value):
+                st.session_state.profile = profile
+                st.session_state.unlock_profile = None
+                go("characters")
+            else:
+                st.error("비밀번호가 맞지 않아요.")
+
+    if st.button("← 돌아가기", width="stretch"):
+        st.session_state.unlock_profile = None
+        go("profiles")
 
 
 # ── 화면 2: 캐릭터 선택 ──────────────────────────────────────────
@@ -688,6 +753,7 @@ def main() -> None:
         "chat": screen_chat,
         "records": screen_records,
         "parent": screen_parent_gate,
+        "unlock": screen_unlock,
     }
     screens.get(st.session_state.screen, screen_profiles)()
 

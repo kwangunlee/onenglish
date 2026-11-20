@@ -31,3 +31,6 @@ assets/video/
 .DS_Store
 Thumbs.db
 voice_samples/
+
+# 수동 업로드용 임시 폴더
+_github_upload/

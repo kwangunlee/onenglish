@@ -69,6 +69,108 @@ def fail(message: str) -> int:
     return 1
 
 
+def sync_with_remote(root: Path, env: dict) -> None:
+    """원격에만 있는 커밋을 가져와 내 커밋을 그 위에 얹습니다.
+
+    GitHub 웹에서 파일을 올렸거나 Codespace 를 만들면 원격에 내가 모르는
+    커밋이 생깁니다. 이 상태로 올리면 거절당합니다."""
+    fetched = subprocess.run(
+        ["git", "fetch", "origin", BRANCH],
+        cwd=root, text=True, capture_output=True, env=env, timeout=120,
+    )
+    if fetched.returncode != 0:
+        return  # 원격이 비어 있는 첫 푸시 등. 그냥 진행합니다.
+
+    ahead = subprocess.run(
+        ["git", "rev-list", "--count", f"HEAD..origin/{BRANCH}"],
+        cwd=root, text=True, capture_output=True,
+    ).stdout.strip()
+    if not ahead or ahead == "0":
+        return
+
+    print(f"  원격에 새 커밋이 {ahead}개 있습니다. 먼저 가져옵니다...")
+    rebased = subprocess.run(
+        ["git", "rebase", f"origin/{BRANCH}"],
+        cwd=root, text=True, capture_output=True,
+    )
+    if rebased.returncode != 0:
+        subprocess.run(["git", "rebase", "--abort"], cwd=root, capture_output=True)
+        print("  자동으로 합치지 못했습니다. 같은 파일을 양쪽에서 고친 것 같습니다.")
+        print("  GitHub 웹에서 고친 내용이 있다면 그것부터 확인해 주세요.")
+    else:
+        print("  합쳤습니다.")
+
+
+def push(root: Path) -> bool:
+    """먼저 평소 방식으로 올려보고, 로그인이 안 되면 토큰 방식으로 다시 시도합니다.
+
+    윈도우에서는 로그인 창이 다른 창 뒤에 숨어서 멈춘 것처럼 보이는 일이
+    흔합니다. 그래서 1분 안에 끝나지 않으면 토큰 방식을 안내합니다."""
+    print("\n  GitHub 로 올립니다...")
+    print("  로그인 창이 뜨면 로그인해 주세요.")
+    print("  (창이 안 보이면 작업표시줄을 확인해 보세요. 다른 창 뒤에 숨어 있을 수 있어요)\n")
+
+    import os as _os
+    full_env = {**_os.environ, "GIT_TERMINAL_PROMPT": "1"}
+
+    # GitHub 웹에서 파일을 추가했거나 Codespace 를 만들면 원격에만 있는 커밋이
+    # 생깁니다. 그대로 올리면 "fetch first" 로 거절당하므로, 먼저 가져와서
+    # 내 커밋을 그 위에 얹습니다.
+    sync_with_remote(root, full_env)
+
+    try:
+        result = subprocess.run(
+            ["git", "push", "-u", "origin", BRANCH],
+            cwd=root, text=True, env=full_env, timeout=120,
+        )
+        if result.returncode == 0:
+            return True
+        print("\n  평소 방식으로는 올리지 못했습니다.")
+    except subprocess.TimeoutExpired:
+        print("\n  로그인 응답이 없어 1분 만에 중단했습니다.")
+
+    # ── 토큰 방식 ──
+    print("\n  ─────────────────────────────────────────────")
+    print("   토큰으로 올리기")
+    print("  ─────────────────────────────────────────────")
+    print()
+    print("   1. 아래 주소를 브라우저에서 여세요:")
+    print("      https://github.com/settings/tokens/new")
+    print()
+    print("   2. Note 칸에 아무 이름이나 (예: onenglish)")
+    print("      Expiration 은 그대로 두세요")
+    print("      Select scopes 에서 [repo] 체크")
+    print()
+    print("   3. 맨 아래 Generate token 누르고,")
+    print("      나온 ghp_... 로 시작하는 문자열을 복사하세요")
+    print()
+    token = input("   토큰을 여기에 붙여넣고 엔터 (취소하려면 그냥 엔터): ").strip()
+    if not token:
+        print("\n  취소했습니다.")
+        return False
+
+    tokened = REMOTE.replace("https://", f"https://{token}@")
+    print("\n  올리는 중...")
+    result = subprocess.run(
+        ["git", "push", "-u", tokened, BRANCH],
+        cwd=root, text=True, capture_output=True,
+    )
+    # 토큰이 화면이나 설정 파일에 남지 않게 합니다.
+    output = (result.stdout + result.stderr).replace(token, "***")
+    if result.returncode != 0:
+        print(output)
+        print("\n  토큰 방식도 실패했습니다. 토큰에 [repo] 권한이 있는지 확인해 주세요.")
+        return False
+
+    print(output)
+    # 원격 주소에 토큰이 저장되지 않도록 되돌립니다.
+    subprocess.run(["git", "remote", "set-url", "origin", REMOTE],
+                   cwd=root, capture_output=True)
+    subprocess.run(["git", "branch", f"--set-upstream-to=origin/{BRANCH}", BRANCH],
+                   cwd=root, capture_output=True)
+    return True
+
+
 def main() -> int:
     print("\n  OnEnglish — GitHub 에 올리기")
     print(f"  폴더: {ROOT}")
@@ -154,18 +256,8 @@ def main() -> int:
         run(["git", "remote", "add", "origin", REMOTE])
 
     # 6. 올리기
-    print("\n  GitHub 로 올립니다...")
-    print("  (로그인 창이 뜨면 GitHub 계정으로 로그인해 주세요)\n")
-    result = subprocess.run(
-        ["git", "push", "-u", "origin", BRANCH], cwd=ROOT, text=True
-    )
-    if result.returncode != 0:
-        return fail(
-            "올리지 못했습니다.\n"
-            "         · GitHub 로그인이 취소되지 않았는지\n"
-            "         · 저장소 주소가 맞는지 확인해 주세요:\n"
-            f"           {REMOTE}"
-        )
+    if not push(ROOT):
+        return 1
 
     print("\n  ─────────────────────────────────────────────")
     print("   올렸습니다.")

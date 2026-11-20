@@ -118,7 +118,7 @@ class OpenAIProvider(Provider):
         return "\n\n".join(p for p in parts if p)
 
     def synthesize(self, text: str, voice: str, direction: Direction) -> bytes:
-        from ..llm import LLMError, client  # 순환 import 방지를 위해 지연 import
+        from ..clients import AIError as LLMError, openai_client as client
 
         cleaned = clean_for_speech(text)
         if not cleaned:

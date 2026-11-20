@@ -1,23 +1,26 @@
 """
-대화 생성 (OpenAI Chat).
+대화 생성.
+
+실제 호출은 core/llm_providers/ 안의 프로바이더가 합니다. 이 파일은
+프로바이더를 고르고, 캐릭터 프롬프트를 조립하는 일만 합니다.
 
 프롬프트 조립 순서:
     캐릭터 성격(persona) + 레벨 규칙(rules) + 지난 기억 + 오늘 날짜
 
-중요: AI 응답은 반드시 role='assistant' 로 쌓습니다. 예전 버전에서 'system' 으로
-쌓아 대화가 길어질수록 캐릭터 설정이 희석되던 버그를 고친 부분입니다.
+답변과 함께 그 순간 캐릭터가 느끼는 감정(mood)도 받아옵니다. 그 감정이
+음성 연출에 전달되어, 같은 캐릭터라도 상황에 따라 목소리가 달라집니다.
 """
 
-import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from openai import OpenAI
+from . import config, llm_providers
+from .clients import AIError
 
-from . import config
+# 다른 모듈이 llm.LLMError 로 쓰고 있어서 이름을 유지합니다.
+LLMError = AIError
 
-# 캐릭터가 그 순간 느끼는 감정. 음성 연출에 그대로 쓰입니다.
 MOODS = (
     "excited", "happy", "playful", "proud",
     "curious", "gentle", "comforting", "silly",
@@ -30,26 +33,31 @@ class Reply:
     text: str
     mood: str = "happy"
 
-_client: OpenAI | None = None
+
+# ── 프로바이더 고르기 ────────────────────────────────────────────
+
+def provider():
+    wanted = config.chat_provider()
+    found = llm_providers.get(wanted)
+    if found is None:
+        raise LLMError(
+            f"'{wanted}' 대화 프로바이더를 찾을 수 없어요. "
+            f"쓸 수 있는 값: {', '.join(llm_providers.ids())}"
+        )
+    return found
 
 
-class LLMError(RuntimeError):
-    """사용자에게 보여줄 수 있는 형태의 오류."""
-
-
-def client() -> OpenAI:
-    global _client
-    if _client is None:
-        if not config.key_is_configured():
-            raise LLMError(config.MISSING_KEY_MESSAGE)
-        _client = OpenAI(api_key=config.openai_api_key())
-    return _client
+def provider_status() -> list[dict]:
+    return [
+        {"id": p.id, "name": p.name, "available": p.is_available(),
+         "model": p.model_label()}
+        for p in llm_providers.all_providers()
+    ]
 
 
 def reset_client() -> None:
-    """키를 바꿨을 때 호출."""
-    global _client
-    _client = None
+    from .clients import reset_openai
+    reset_openai()
 
 
 # ── 프롬프트 조립 ────────────────────────────────────────────────
@@ -77,7 +85,7 @@ def _memory_block(memories: list[dict]) -> str:
 
 
 def _learning_block(learning: list[dict]) -> str:
-    """아이가 아직 익숙하지 않은 표현을 캐릭터가 '올바르게 자주 써주도록' 유도.
+    """아이가 아직 익숙하지 않은 표현을 캐릭터가 올바르게 자주 써주도록 유도.
     절대 지적하지는 않습니다 (암묵적 교정)."""
     forms = [
         (l.get("better_form") or "").strip()
@@ -124,52 +132,29 @@ def build_system_prompt(
     return prompt
 
 
-# ── 모델 호출 (파라미터 호환 처리) ───────────────────────────────
+REPLY_SCHEMA: dict[str, Any] = {
+    "title": "character_reply",
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["reply", "mood"],
+    "properties": {
+        "reply": {"type": "string"},
+        "mood": {"type": "string", "enum": list(MOODS)},
+    },
+}
 
-def create_completion(messages: list[dict], **options: Any):
-    """chat.completions.create 호출.
-
-    모델마다 받는 파라미터가 다릅니다. 예를 들어 추론 계열 모델은 max_tokens 와
-    temperature 를 거부합니다. 나중에 secrets 에서 CHAT_MODEL 만 바꿔도 앱이
-    깨지지 않도록, 거부당한 파라미터를 하나씩 빼면서 다시 시도합니다.
-    """
-    model = config.chat_model()
-
-    attempts: list[dict[str, Any]] = [dict(options)]
-
-    # max_tokens -> max_completion_tokens 로 바꾼 버전
-    if "max_tokens" in options:
-        swapped = dict(options)
-        swapped["max_completion_tokens"] = swapped.pop("max_tokens")
-        attempts.append(swapped)
-
-    # 선택적 파라미터를 모두 뺀 최소 버전
-    minimal = {
-        k: v for k, v in options.items()
-        if k not in ("max_tokens", "temperature", "presence_penalty")
-    }
-    attempts.append(minimal)
-
-    last_error: Exception | None = None
-    for kwargs in attempts:
-        try:
-            return client().chat.completions.create(
-                model=model, messages=messages, **kwargs
-            )
-        except LLMError:
-            raise
-        except Exception as e:
-            last_error = e
-            text = str(e).lower()
-            retryable = any(
-                s in text for s in
-                ("unsupported", "unrecognized", "not supported",
-                 "invalid_request_error", "max_tokens", "temperature")
-            )
-            if not retryable:
-                break
-
-    raise LLMError(f"답변을 만드는 중 문제가 생겼어요: {last_error}")
+_FORMAT_NOTE = (
+    "\n\n[Output format]\n"
+    "Reply with a JSON object: {\"reply\": ..., \"mood\": ...}\n"
+    "- reply: what you say out loud, in character. Follow every rule above. "
+    "Plain text only, no stage directions, no emoji, no quotation marks "
+    "around it.\n"
+    "- mood: how YOU feel at this moment, chosen from exactly one of: "
+    + ", ".join(MOODS) + ".\n"
+    "Pick the mood honestly from what your friend just said. If they shared "
+    "exciting news, be excited. If they sound down, be gentle or comforting. "
+    "If they are joking, be silly or playful. Do not always pick the same one."
+)
 
 
 # ── 대화 ─────────────────────────────────────────────────────────
@@ -184,87 +169,55 @@ def reply(
     child_name: str | None = None,
 ) -> Reply:
     """history 는 [{'role': 'user'|'assistant', 'content': str}, ...] 입니다.
-    system 메시지는 여기서 직접 만들기 때문에 history 에 넣지 마세요.
+    system 메시지는 여기서 직접 만들기 때문에 history 에 넣지 마세요."""
 
-    답변 텍스트와 함께 그 순간 캐릭터가 느끼는 감정(mood)도 받아옵니다.
-    mood 는 음성 연출에 그대로 전달되어, 같은 캐릭터라도 상황에 따라 목소리가
-    달라지게 합니다. 호출은 한 번뿐이라 추가 비용은 거의 없습니다."""
+    chat = provider()
+    if not chat.is_available():
+        raise LLMError(chat.unavailable_reason())
 
     system_prompt = build_system_prompt(
         character, level, memories, learning, child_name
-    )
-    system_prompt += (
-        "\n\n[Output format]\n"
-        "Reply with a JSON object: {\"reply\": ..., \"mood\": ...}\n"
-        "- reply: what you say out loud, in character. Follow every rule above. "
-        "Plain text only, no stage directions, no emoji, no quotation marks "
-        "around it.\n"
-        "- mood: how YOU feel at this moment, chosen from exactly one of: "
-        + ", ".join(MOODS) + ".\n"
-        "Pick the mood honestly from what your friend just said. If they shared "
-        "exciting news, be excited. If they sound down, be gentle or comforting. "
-        "If they are joking, be silly or playful. Do not always pick the same one."
-    )
+    ) + _FORMAT_NOTE
 
-    trimmed = _trim_history(history, config.max_history_turns())
-
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
-    messages.extend(trimmed)
-    messages.append({"role": "user", "content": user_text})
-
-    response = create_completion(
-        messages,
-        max_tokens=config.max_reply_tokens() + 40,  # JSON 포장 여유분
-        temperature=0.85,
-        presence_penalty=0.4,
-        response_format={"type": "json_schema", "json_schema": _REPLY_SCHEMA},
-    )
-
-    raw = (response.choices[0].message.content or "").strip()
-    text, mood = _parse_reply(raw)
-    if not text:
-        raise LLMError("답변이 비어 있어요. 다시 한 번 말해볼까요?")
-    return Reply(text=text, mood=mood)
-
-
-_REPLY_SCHEMA = {
-    "name": "character_reply",
-    "strict": True,
-    "schema": {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["reply", "mood"],
-        "properties": {
-            "reply": {"type": "string"},
-            "mood": {"type": "string", "enum": list(MOODS)},
-        },
-    },
-}
-
-
-def _parse_reply(raw: str) -> tuple[str, str]:
-    """JSON 으로 오는 게 정상이지만, 모델을 바꿔 쓰다 평문이 와도 깨지지 않게
-    처리합니다. 대화가 음성 연출 때문에 멈추면 안 되니까요."""
     try:
-        data = json.loads(raw)
+        data = chat.structured(
+            system_prompt=system_prompt,
+            user_text=user_text,
+            schema=REPLY_SCHEMA,
+            temperature=0.85,
+            max_tokens=config.max_reply_tokens() + 60,
+            history=history,
+        )
         text = str(data.get("reply", "")).strip()
         mood = str(data.get("mood", "")).strip().lower()
-        if text:
-            return text, (mood if mood in MOODS else "happy")
-    except (json.JSONDecodeError, AttributeError, TypeError):
-        pass
-    return raw, "happy"
+    except LLMError:
+        # JSON 을 못 받아도 대화가 끊기면 안 되므로 평문으로 한 번 더.
+        text = chat.chat(
+            system_prompt=build_system_prompt(
+                character, level, memories, learning, child_name
+            ),
+            history=history,
+            user_text=user_text,
+            max_tokens=config.max_reply_tokens(),
+            temperature=0.85,
+        )
+        mood = "happy"
+
+    if not text:
+        raise LLMError("답변이 비어 있어요. 다시 한 번 말해볼까요?")
+    return Reply(text=text, mood=mood if mood in MOODS else "happy")
 
 
-def _trim_history(history: list[dict], max_turns: int) -> list[dict]:
-    """최근 max_turns 쌍만 남깁니다. role 이 이상한 항목은 버립니다."""
-    clean = [
-        {"role": m["role"], "content": m["content"]}
-        for m in history
-        if m.get("role") in ("user", "assistant") and m.get("content")
-    ]
-    keep = max_turns * 2
-    return clean[-keep:] if keep > 0 else clean
+def structured(system_prompt: str, user_text: str, schema: dict,
+               temperature: float = 0.2, max_tokens: int = 800) -> dict:
+    """기억 추출 등에서 쓰는 범용 JSON 호출."""
+    chat = provider()
+    if not chat.is_available():
+        raise LLMError(chat.unavailable_reason())
+    return chat.structured(
+        system_prompt=system_prompt, user_text=user_text, schema=schema,
+        temperature=temperature, max_tokens=max_tokens,
+    )
 
 
 def greeting_for(character: dict, is_returning: bool) -> str:

@@ -39,17 +39,36 @@ def openai_api_key() -> str:
     return _get("OPENAI_API_KEY")
 
 
+def google_api_key() -> str:
+    """Google API 키 (Gemini + Text-to-Speech 공용).
+
+    서비스 계정 JSON 이 아니라 API 키입니다. 같은 키 하나로 대화·음성인식·
+    음성합성을 모두 쓸 수 있습니다 (해당 API 들을 사용 설정해 두면).
+    예전 이름인 GOOGLE_TTS_KEY 도 계속 인식합니다."""
+    for name in ("GOOGLE_API_KEY", "GOOGLE_TTS_KEY"):
+        key = _get(name)
+        if key and not any(m in key for m in TEMPLATE_MARKERS):
+            return key
+    return ""
+
+
 def google_tts_key() -> str:
-    """Google Text-to-Speech API 키. 서비스 계정 JSON 이 아니라 API 키입니다."""
-    key = _get("GOOGLE_TTS_KEY")
-    if not key or any(m in key for m in TEMPLATE_MARKERS):
-        return ""
-    return key
+    """예전 이름 호환."""
+    return google_api_key()
 
 
 def app_password() -> str:
     """앱에 들어올 때 묻는 비밀번호. 비워두면 묻지 않습니다."""
     return _get("APP_PASSWORD")
+
+
+def signup_code() -> str:
+    """새 사람을 추가할 때만 묻는 코드. 비워두면 묻지 않습니다.
+
+    인터넷에 공개했을 때를 위한 것입니다. 기존 사용자는 자기 이름을 고르고
+    자기 비밀번호만 넣으면 되고(첫 화면에는 비밀번호 벽이 없습니다),
+    모르는 사람이 새 프로필을 만들어 API 비용을 쓰는 것만 막습니다."""
+    return _get("SIGNUP_CODE")
 
 
 def parent_password() -> str:
@@ -107,18 +126,48 @@ def voice_mode() -> str:
 # openai : 연기 지시를 반영 → 생기 있음, 음색이 미세하게 흔들림
 # google : 텍스트와 속도만  → 음색이 일정함, 톤 변화 없음
 # 캐릭터 정의의 "tts_provider" 로 캐릭터마다 따로 지정할 수도 있습니다.
+def ai_provider() -> str:
+    """전체 기본 프로바이더. openai 또는 google.
+
+    이 한 줄로 대화·음성인식·음성합성이 모두 바뀝니다. 개별로 다르게 쓰고
+    싶으면 아래 세 개를 따로 지정하면 됩니다."""
+    return _get("AI_PROVIDER", "openai").lower()
+
+
+def chat_provider() -> str:
+    return _get("CHAT_PROVIDER", ai_provider()).lower()
+
+
+def stt_provider() -> str:
+    return _get("STT_PROVIDER", ai_provider()).lower()
+
+
 def tts_provider() -> str:
-    return _get("TTS_PROVIDER", "openai").lower()
+    return _get("TTS_PROVIDER", ai_provider()).lower()
 
 
-MISSING_GOOGLE_KEY_MESSAGE = """Google 음성을 쓰려면 GOOGLE_TTS_KEY 가 필요합니다.
+# ── Google 모델 이름 ─────────────────────────────────────────────
+# 모델 이름은 바뀔 수 있습니다. 안 되면 tools/check_google.py --models 로
+# 지금 쓸 수 있는 목록을 확인하고 여기 값을 바꾸세요.
+def gemini_chat_model() -> str:
+    return _get("GEMINI_CHAT_MODEL", "gemini-2.0-flash")
 
-1. https://console.cloud.google.com 에서 "Cloud Text-to-Speech API" 를 사용 설정하세요.
-2. 사용자 인증 정보 → API 키 만들기.
-3. 만든 키는 "API 제한"에서 Text-to-Speech 만 허용하도록 꼭 제한하세요.
-4. .streamlit/secrets.toml 의 GOOGLE_TTS_KEY 에 넣고 앱을 다시 실행하세요.
+
+def gemini_stt_model() -> str:
+    return _get("GEMINI_STT_MODEL", "gemini-2.0-flash")
+
+
+MISSING_GOOGLE_KEY_MESSAGE = """Google 을 쓰려면 GOOGLE_API_KEY 가 필요합니다.
+
+1. https://aistudio.google.com/apikey 에서 "Create API key" (가장 쉬움)
+   또는 https://console.cloud.google.com 에서 API 키 만들기
+2. 쓰려는 기능에 따라 아래 API 를 사용 설정하세요.
+   · 대화 / 음성인식 : Generative Language API
+   · 음성합성       : Cloud Text-to-Speech API
+3. .streamlit/secrets.toml 의 GOOGLE_API_KEY 에 넣고 앱을 다시 실행하세요.
 
 서비스 계정 JSON 파일은 필요하지 않습니다. API 키 하나면 됩니다.
+확인: python tools/check_google.py
 """
 
 

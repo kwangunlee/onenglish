@@ -18,14 +18,13 @@ structured outputs(json_schema, strict)를 쓰기 때문에 형식이 어긋나�
 import json
 
 from . import config, store
-from .llm import LLMError, create_completion
+from .llm import LLMError, structured
 
 MIN_CHILD_TURNS = 2  # 이보다 짧은 대화는 뽑을 게 없으므로 API 를 쓰지 않습니다.
 
 _SCHEMA = {
-    "name": "conversation_notes",
-    "strict": True,
-    "schema": {
+    "title": "conversation_notes",
+    **{
         "type": "object",
         "additionalProperties": False,
         "required": ["memories", "learning"],
@@ -116,25 +115,20 @@ def extract(messages: list[dict], child_name: str = "The child") -> dict:
     if child_turns < MIN_CHILD_TURNS:
         return {"memories": [], "learning": []}
 
-    prompt = [
-        {"role": "system", "content": _INSTRUCTIONS},
-        {
-            "role": "user",
-            "content": (
-                f"Today is {store.today()}.\n"
-                f"The child is called {child_name}.\n\n"
-                f"--- chat ---\n{_transcript(messages, child_name)}"
-            ),
-        },
-    ]
+    user_text = (
+        f"Today is {store.today()}.\n"
+        f"The child is called {child_name}.\n\n"
+        f"--- chat ---\n{_transcript(messages, child_name)}"
+    )
 
     try:
-        response = create_completion(
-            prompt,
-            response_format={"type": "json_schema", "json_schema": _SCHEMA},
+        data = structured(
+            system_prompt=_INSTRUCTIONS,
+            user_text=user_text,
+            schema=_SCHEMA,
             temperature=0.2,
+            max_tokens=900,
         )
-        data = json.loads(response.choices[0].message.content or "{}")
     except LLMError:
         raise
     except Exception as e:

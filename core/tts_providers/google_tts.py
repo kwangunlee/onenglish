@@ -58,13 +58,13 @@ class GoogleProvider(Provider):
     voice_field = "voice_google"
 
     def is_available(self) -> bool:
-        return bool(config.google_tts_key())
+        return bool(config.google_api_key())
 
     def unavailable_reason(self) -> str:
         return config.MISSING_GOOGLE_KEY_MESSAGE
 
     def list_voices(self) -> list[Voice]:
-        key = config.google_tts_key()
+        key = config.google_api_key()
         if not key:
             return list(KNOWN_VOICES)
         try:
@@ -88,13 +88,13 @@ class GoogleProvider(Provider):
         return out or list(KNOWN_VOICES)
 
     def synthesize(self, text: str, voice: str, direction: Direction) -> bytes:
-        from ..llm import LLMError  # 순환 import 방지
+        from ..clients import AIError as LLMError
 
         cleaned = clean_for_speech(text)
         if not cleaned:
             return b""
 
-        key = config.google_tts_key()
+        key = config.google_api_key()
         if not key:
             raise LLMError(config.MISSING_GOOGLE_KEY_MESSAGE)
 
@@ -122,7 +122,7 @@ class GoogleProvider(Provider):
         return audio or b""
 
     def _post(self, payload: dict, key: str, raise_on_fail: bool = False):
-        from ..llm import LLMError
+        from ..clients import AIError as LLMError
 
         try:
             response = requests.post(
