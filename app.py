@@ -239,8 +239,7 @@ def screen_profiles() -> None:
                     if locked:
                         st.session_state.unlock_profile = profile
                         go("unlock")
-                    st.session_state.profile = profile
-                    go("characters")
+                    enter_profile(profile)
     else:
         st.info("아직 등록된 사람이 없어요. 아래에서 이름을 추가해 주세요.")
 
@@ -282,6 +281,27 @@ def screen_profiles() -> None:
                         go("characters")
 
 
+def enter_profile(profile: dict) -> None:
+    """프로필 입장. 버려진 대화가 있으면 먼저 기억을 건져냅니다.
+
+    아이가 '대화 끝내기' 를 누르지 않고 창을 닫으면 그 대화의 기억이
+    사라집니다. 여기서 한 번 훑어서 복구합니다. 버려진 대화가 없으면
+    아무 일도 일어나지 않습니다."""
+    st.session_state.profile = profile
+
+    orphans = store.orphan_sessions(profile["id"])
+    if orphans:
+        with st.spinner("지난 이야기를 정리하고 있어요..."):
+            result = memory.sweep_orphans(profile["id"], profile["name"])
+        if result["memories"] or result["learning"]:
+            flash(
+                f"지난 대화에서 기억 {result['memories']}개를 더 정리했어요.",
+                "info",
+            )
+
+    go("characters")
+
+
 def screen_unlock() -> None:
     """프로필 비밀번호 확인. 여기를 통과하기 전에는 그 사람의 대화 기록이
     화면에 전혀 나오지 않습니다."""
@@ -300,9 +320,8 @@ def screen_unlock() -> None:
                               placeholder="비밀번호")
         if st.form_submit_button("들어가기", type="primary", width="stretch"):
             if store.verify_profile_password(profile["id"], value):
-                st.session_state.profile = profile
                 st.session_state.unlock_profile = None
-                go("characters")
+                enter_profile(profile)
             else:
                 st.error("비밀번호가 맞지 않아요.")
 
@@ -356,10 +375,25 @@ def screen_characters() -> None:
 def start_chat(character_id: str) -> None:
     profile = st.session_state.profile
     character = packs.get_character(character_id)
-    is_returning = store.profile_stats(profile["id"])["sessions"] > 0
+
+    # 이번에 물어볼 만한 이야깃거리가 있는지 (없으면 그냥 반갑게 인사)
+    followup, memory_id = memory.opener_followup(profile["id"])
+    days_since = store.days_since_last_chat(profile["id"])
 
     session_id = store.start_session(profile["id"], character_id)
-    greeting = llm.greeting_for(character, is_returning)
+
+    with st.spinner(f"{character['name']} 이(가) 오고 있어요..."):
+        hello = llm.opener(
+            character=character,
+            child_name=profile["name"],
+            followup=followup,
+            days_since=days_since,
+        )
+    greeting = hello.text
+    if followup and memory_id:
+        # 같은 이야기를 매번 다시 꺼내지 않도록 도장을 찍습니다.
+        store.mark_opener_used(memory_id)
+
     store.add_message(session_id, "assistant", greeting)
 
     st.session_state.character_id = character_id
@@ -377,7 +411,7 @@ def start_chat(character_id: str) -> None:
             audio = tts.synthesize(
                 greeting,
                 rate=float(st.session_state.rate),
-                mood="happy",
+                mood=hello.mood,
                 character=character,
             )
             if audio:

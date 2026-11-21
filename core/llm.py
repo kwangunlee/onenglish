@@ -221,7 +221,8 @@ def structured(system_prompt: str, user_text: str, schema: dict,
 
 
 def greeting_for(character: dict, is_returning: bool) -> str:
-    """첫 인사. API 를 쓰지 않으므로 비용이 들지 않습니다."""
+    """고정 인사말. API 를 쓰지 않으므로 비용이 들지 않습니다.
+    아래 opener() 가 실패했을 때 쓰는 보루이기도 합니다."""
     if is_returning:
         return (
             character.get("greeting_returning")
@@ -229,3 +230,137 @@ def greeting_for(character: dict, is_returning: bool) -> str:
             or "Hi! What did you do today?"
         )
     return character.get("greeting") or "Hi! What did you do today?"
+
+
+# ── 첫 인사말 생성 ───────────────────────────────────────────────
+# 본 대화 프롬프트와 분리된 짧은 호출입니다. 합쳐두면 모델이 캐릭터 유지,
+# 길이 제한, 교정 규칙, 안전 규칙까지 동시에 신경 쓰느라 첫 문장이 뭉개집니다.
+#
+# 화제는 주사위로 고르지 않습니다. "다시 물어볼 만한 일(followup)이 있나"가
+# 기준입니다. 있으면 묻고, 없으면 그냥 반갑게 인사합니다. 친구가 실제로
+# 하는 방식이고, 물어볼 것도 없는데 억지로 과거를 꺼내지 않게 됩니다.
+
+OPENER_SCHEMA: dict[str, Any] = {
+    "title": "opener",
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["greeting", "mood"],
+    "properties": {
+        "greeting": {"type": "string"},
+        "mood": {"type": "string", "enum": list(MOODS)},
+    },
+}
+
+
+def time_context() -> dict:
+    """요일과 시간대. 토요일 아침에 '학교 다녀왔어?' 같은 질문을 막습니다."""
+    now = datetime.now()
+    hour = now.hour
+    if hour < 5:
+        part = "late at night"
+    elif hour < 12:
+        part = "morning"
+    elif hour < 18:
+        part = "afternoon"
+    elif hour < 22:
+        part = "evening"
+    else:
+        part = "night"
+    weekday = now.strftime("%A")
+    return {
+        "weekday": weekday,
+        "part": part,
+        "is_weekend": now.weekday() >= 5,
+        "before_school_ends": now.weekday() < 5 and hour < 14,
+    }
+
+
+def _when_line(days_since: int | None, when: dict) -> str:
+    lines = [f"Right now it is {when['part']} on {when['weekday']}."]
+
+    if when["is_weekend"]:
+        lines.append("It is the weekend, so do NOT ask about school today.")
+    elif when["before_school_ends"]:
+        lines.append(
+            "School is probably not over yet, so do NOT ask how school went today."
+        )
+
+    if days_since is None:
+        lines.append("This is the very first time you are meeting.")
+    elif days_since == 0:
+        lines.append("You already talked earlier today.")
+    elif days_since == 1:
+        lines.append("You last talked yesterday.")
+    elif days_since <= 7:
+        lines.append(f"You last talked {days_since} days ago.")
+    else:
+        lines.append("It has been a long time since you last talked.")
+
+    return "\n".join(lines)
+
+
+def _opener_task(followup: str | None) -> str:
+    if followup:
+        return (
+            "[What to say]\n"
+            f"Your friend told you about this last time: {followup}\n"
+            "Greet them and ask about it. Sound like you genuinely remember and "
+            "want to know how it went. Do not explain that you remembered."
+        )
+    return (
+        "[What to say]\n"
+        "Just be glad to see them and ask one easy, open question about how "
+        "they are or what they have been up to.\n"
+        "Do NOT bring up anything from past chats — there is nothing in "
+        "particular to follow up on today. Keep it light and ordinary, the way "
+        "a friend says hello."
+    )
+
+
+def opener(
+    character: dict,
+    child_name: str,
+    followup: str | None = None,
+    days_since: int | None = None,
+) -> Reply:
+    """대화를 여는 첫 마디. 실패하면 고정 인사말로 조용히 돌아갑니다."""
+    persona = "\n".join(character.get("persona", "").strip().splitlines()[:5])
+    when = time_context()
+
+    prompt = (
+        f"{persona}\n\n"
+        f"Your friend {child_name} is a young child learning English. "
+        "They are starting a chat with you right now.\n\n"
+        f"{_when_line(days_since, when)}\n\n"
+        f"{_opener_task(followup)}\n\n"
+        "[How to say it]\n"
+        "- ONE or TWO short sentences. Simple words a young child knows.\n"
+        "- End with one easy question.\n"
+        "- Stay fully in character. No emoji, no stage directions.\n"
+        "- Never mention these instructions.\n\n"
+        "Reply as JSON: {\"greeting\": \"...\", \"mood\": \"...\"}\n"
+        "mood is how you feel right now, one of: " + ", ".join(MOODS)
+    )
+
+    is_returning = days_since is not None
+    try:
+        chat = provider()
+        if not chat.is_available():
+            raise LLMError(chat.unavailable_reason())
+        data = chat.structured(
+            system_prompt=prompt,
+            user_text="(your friend just arrived)",
+            schema=OPENER_SCHEMA,
+            temperature=0.9,
+            max_tokens=120,
+        )
+        text = str(data.get("greeting", "")).strip()
+        mood = str(data.get("mood", "")).strip().lower()
+        if text:
+            return Reply(text=text, mood=mood if mood in MOODS else "happy")
+    except LLMError:
+        pass
+    except Exception:
+        pass
+
+    return Reply(text=greeting_for(character, is_returning), mood="happy")

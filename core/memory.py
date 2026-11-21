@@ -37,6 +37,7 @@ _SCHEMA = {
                     "required": [
                         "kind", "summary_ko", "summary_en",
                         "people", "sentiment", "occurred_on",
+                        "followup", "expires_on",
                     ],
                     "properties": {
                         "kind": {
@@ -53,6 +54,8 @@ _SCHEMA = {
                                      "tired", "sad", "neutral"],
                         },
                         "occurred_on": {"type": ["string", "null"]},
+                        "followup": {"type": ["string", "null"]},
+                        "expires_on": {"type": ["string", "null"]},
                     },
                 },
             },
@@ -88,6 +91,8 @@ Pull out two kinds of notes.
 - summary_ko is the same thing in short natural Korean, e.g. "친구들과 눈싸움을 했다".
 - people: names or words the child used for people involved, in the child's own words. Empty list if none.
 - occurred_on: "YYYY-MM-DD" if the child clearly indicated a date. If they said "today", use today's date. If unclear, use null.
+- followup: ONLY if this is something a friend would naturally ask about again next time — an open thread. Write it as a short instruction, e.g. "ask how the piano recital went", "ask if the loose tooth came out". Use null for closed facts that need no follow-up (favorites, traits, things already finished and fully told).
+- expires_on: "YYYY-MM-DD" after which the follow-up would feel stale. A week after the event is usually right; a few days for small things. null if there is no follow-up.
 - Skip small talk, greetings, and anything the character said about itself.
 - Do NOT record anything about the child's health conditions, family conflict, money, or anything a parent would consider private or distressing. If the child mentioned something worrying, leave it out entirely.
 - Return an empty list if there is nothing worth remembering. An empty list is a perfectly good answer.
@@ -174,6 +179,8 @@ def extract_and_save(
             people=m.get("people") or [],
             sentiment=m.get("sentiment"),
             occurred_on=m.get("occurred_on") or None,
+            followup=m.get("followup") or None,
+            expires_on=m.get("expires_on") or None,
         )
         result["memories"] += 1
 
@@ -193,6 +200,47 @@ def extract_and_save(
         result["learning"] += 1
 
     return result
+
+
+def sweep_orphans(profile_id: int, child_name: str) -> dict:
+    """끝맺지 못하고 버려진 대화에서 기억을 건져냅니다.
+
+    아이가 '대화 끝내기' 를 누르지 않고 창을 닫거나, 배터리가 나가거나,
+    브라우저가 죽으면 그 대화의 기억이 통째로 사라집니다. 그런 세션은
+    ended_at 이 비어 있으므로 찾아낼 수 있습니다.
+
+    다음에 그 아이가 들어올 때 한 번 돌립니다. 버려진 대화가 없으면
+    아무 일도 하지 않으므로 평소에는 비용이 들지 않습니다."""
+    result = {"sessions": 0, "memories": 0, "learning": 0}
+
+    for session in store.orphan_sessions(profile_id):
+        messages = store.get_messages(session["id"])
+        saved = extract_and_save(
+            profile_id=profile_id,
+            session_id=session["id"],
+            messages=messages,
+            child_name=child_name,
+        )
+        # 추출에 실패해도 세션은 닫습니다. 안 그러면 들어올 때마다 같은
+        # 대화를 다시 시도하면서 비용만 나갑니다.
+        store.end_session(session["id"])
+        result["sessions"] += 1
+        result["memories"] += saved["memories"]
+        result["learning"] += saved["learning"]
+
+    return result
+
+
+def opener_followup(profile_id: int) -> tuple[str | None, int | None]:
+    """이번에 꺼낼 만한 이야깃거리 하나. 없으면 (None, None).
+
+    '떡볶이를 좋아한다' 같은 닫힌 사실은 followup 이 비어 있어서 걸리지
+    않습니다. 물어볼 게 있을 때만 묻기 위한 구분입니다."""
+    rows = store.live_followups(profile_id, limit=5)
+    if not rows:
+        return None, None
+    first = rows[0]
+    return (first.get("followup") or "").strip() or None, first["id"]
 
 
 def recall(profile_id: int) -> tuple[list[dict], list[dict]]:

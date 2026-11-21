@@ -64,7 +64,10 @@ CREATE TABLE IF NOT EXISTS memories (
     people        TEXT NOT NULL DEFAULT '[]',
     sentiment     TEXT,
     occurred_on   TEXT,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL,
+    followup      TEXT,
+    expires_on    TEXT,
+    opener_used_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS learning_log (
@@ -115,9 +118,14 @@ def init_db() -> None:
 def _migrate(conn: sqlite3.Connection) -> None:
     """예전 버전에서 만들어진 DB 에 새 컬럼을 더합니다.
     이미 쌓인 대화와 기억은 그대로 둡니다."""
-    existing = {r["name"] for r in conn.execute("PRAGMA table_info(profiles)")}
-    if "password_hash" not in existing:
+    profile_cols = {r["name"] for r in conn.execute("PRAGMA table_info(profiles)")}
+    if "password_hash" not in profile_cols:
         conn.execute("ALTER TABLE profiles ADD COLUMN password_hash TEXT")
+
+    memory_cols = {r["name"] for r in conn.execute("PRAGMA table_info(memories)")}
+    for column in ("followup", "expires_on", "opener_used_at"):
+        if column not in memory_cols:
+            conn.execute(f"ALTER TABLE memories ADD COLUMN {column} TEXT")
 
 
 # ── 비밀번호 ─────────────────────────────────────────────────────
@@ -311,12 +319,17 @@ def add_memory(
     people: list[str] | None = None,
     sentiment: str | None = None,
     occurred_on: str | None = None,
+    followup: str | None = None,
+    expires_on: str | None = None,
 ) -> None:
+    """followup 은 '다음에 만나면 물어볼 것'입니다. 없으면 None.
+    expires_on 이 지나면 더 이상 꺼내지 않습니다."""
     with connect() as conn:
         conn.execute(
             "INSERT INTO memories (profile_id, session_id, kind, summary_ko,"
-            " summary_en, people, sentiment, occurred_on, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " summary_en, people, sentiment, occurred_on, created_at,"
+            " followup, expires_on)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 profile_id,
                 session_id,
@@ -327,6 +340,8 @@ def add_memory(
                 sentiment,
                 occurred_on or today(),
                 now(),
+                (followup or "").strip() or None,
+                (expires_on or "").strip() or None,
             ),
         )
 
@@ -350,6 +365,68 @@ def all_memories(profile_id: int, limit: int = 200) -> list[dict]:
 def delete_memory(memory_id: int) -> None:
     with connect() as conn:
         conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+
+
+def live_followups(profile_id: int, limit: int = 5) -> list[dict]:
+    """다음에 만나면 물어볼 만한 것들.
+
+    조건: followup 이 있고, 아직 만료되지 않았고, 최근에 인사말로 쓰지 않은 것.
+    '떡볶이를 좋아한다' 같은 닫힌 사실은 followup 이 비어 있어서 안 걸립니다."""
+    with connect() as conn:
+        rows = _rows(conn.execute(
+            "SELECT * FROM memories WHERE profile_id = ?"
+            " AND followup IS NOT NULL AND trim(followup) <> ''"
+            " AND (expires_on IS NULL OR expires_on >= ?)"
+            " AND opener_used_at IS NULL"
+            " ORDER BY created_at DESC LIMIT ?",
+            (profile_id, today(), limit),
+        ))
+    for r in rows:
+        r["people"] = json.loads(r.get("people") or "[]")
+    return rows
+
+
+def mark_opener_used(memory_id: int) -> None:
+    """인사말로 꺼낸 기억에 도장을 찍어 다시 꺼내지 않게 합니다."""
+    with connect() as conn:
+        conn.execute(
+            "UPDATE memories SET opener_used_at = ? WHERE id = ?",
+            (now(), memory_id),
+        )
+
+
+def days_since_last_chat(profile_id: int) -> int | None:
+    """마지막으로 대화한 지 며칠 됐는지. 처음이면 None."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT MAX(started_at) AS last FROM sessions"
+            " WHERE profile_id = ? AND (SELECT COUNT(*) FROM messages m"
+            "   WHERE m.session_id = sessions.id) > 1",
+            (profile_id,),
+        ).fetchone()
+    if not row or not row["last"]:
+        return None
+    try:
+        last = datetime.fromisoformat(row["last"]).date()
+    except ValueError:
+        return None
+    return (datetime.now().date() - last).days
+
+
+def orphan_sessions(profile_id: int, min_messages: int = 3) -> list[dict]:
+    """끝맺지 못하고 버려진 대화.
+
+    아이가 '대화 끝내기' 를 누르지 않고 창을 닫으면 ended_at 이 비어 있습니다.
+    그대로 두면 그날 기억이 통째로 사라지므로, 다음 입장 때 찾아서 정리합니다."""
+    with connect() as conn:
+        return _rows(conn.execute(
+            "SELECT s.* FROM sessions s WHERE s.profile_id = ?"
+            " AND s.ended_at IS NULL"
+            " AND (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id)"
+            "     >= ?"
+            " ORDER BY s.started_at",
+            (profile_id, min_messages),
+        ))
 
 
 def memory_exists(profile_id: int, summary_en: str) -> bool:
