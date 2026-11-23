@@ -25,6 +25,7 @@ OnEnglish — 관리자 화면.
 """
 
 import hmac
+from datetime import date
 import json
 import os
 
@@ -53,7 +54,7 @@ def _bridge_secrets() -> None:
 
 _bridge_secrets()
 
-from core import config, packs, store  # noqa: E402
+from core import config, goals, packs, store  # noqa: E402
 
 KIND_LABEL = {
     "activity": "활동", "person": "사람", "favorite": "좋아하는 것",
@@ -107,8 +108,8 @@ def gate() -> bool:
 def sidebar(profiles: list[dict]) -> int | None:
     with st.sidebar:
         st.markdown("### 학생")
-        labels = ["📋 전체 현황", "🏫 반 관리"] + [p["name"] for p in profiles]
-        ids = [None, "classes"] + [p["id"] for p in profiles]
+        labels = ["📋 전체 현황", "🏫 반 관리", "🎯 학습 목표"] + [p["name"] for p in profiles]
+        ids = [None, "classes", "goals"] + [p["id"] for p in profiles]
         current = st.session_state.get("admin_selected")
         index = ids.index(current) if current in ids else 0
         choice = st.radio("학생", labels, index=index, label_visibility="collapsed")
@@ -192,7 +193,7 @@ def overview(profiles: list[dict], classes: list[dict]) -> None:
 
 # ── 학생 한 명 ───────────────────────────────────────────────────
 
-def student(profile: dict, classes: list[dict]) -> None:
+def student(profile: dict, classes: list[dict], profiles: list[dict]) -> None:
     pid = profile["id"]
     stats = store.profile_stats(pid)
     st.title(profile["name"])
@@ -204,19 +205,21 @@ def student(profile: dict, classes: list[dict]) -> None:
     )
     show_flash()
 
-    tabs = st.tabs(["💬 대화 기록", "🧠 기억", "📝 학습 기록",
+    tabs = st.tabs(["💬 대화 기록", "🎯 학습 목표", "🧠 기억", "📝 학습 기록",
                     "✏️ 학생 정보", "🔑 비밀번호", "🗑️ 학생 삭제"])
     with tabs[0]:
         conversations(profile)
     with tabs[1]:
-        memories(pid)
+        student_goals(profile, profiles, classes)
     with tabs[2]:
-        learning(pid)
+        memories(pid)
     with tabs[3]:
-        edit_info(profile, classes)
+        learning(pid)
     with tabs[4]:
-        reset_password(profile)
+        edit_info(profile, classes)
     with tabs[5]:
+        reset_password(profile)
+    with tabs[6]:
         delete_student(profile)
 
 
@@ -431,6 +434,188 @@ def classes_page(profiles: list[dict], classes: list[dict]) -> None:
                 st.rerun()
 
 
+# ── 학습 목표 ────────────────────────────────────────────────────
+
+def _targets(profiles: list[dict], classes: list[dict]) -> list[tuple[str, int]]:
+    return ([("class", c["id"]) for c in classes]
+            + [("profile", p["id"]) for p in profiles])
+
+
+def target_label(target: tuple, profiles: list[dict], classes: list[dict]) -> str:
+    kind, tid = target
+    if kind == "class":
+        return f"🏫 반: {class_name(tid, classes)}"
+    found = next((p["name"] for p in profiles if p["id"] == tid), str(tid))
+    return f"🙂 학생: {found}"
+
+
+def goal_form(key: str, profiles, classes, goal: dict | None = None) -> dict | None:
+    """목표 입력 칸. 저장 버튼을 누르면 값(dict), 아니면 None."""
+    g = goal or {}
+    targets = _targets(profiles, classes)
+    if not targets:
+        st.info("먼저 반이나 학생을 만들어 주세요.")
+        return None
+    current = (g.get("target_type"), g.get("target_id"))
+    with st.form(key, clear_on_submit=goal is None):
+        target = st.selectbox(
+            "누구에게", targets, index=targets.index(current) if current in targets else 0,
+            format_func=lambda t: target_label(t, profiles, classes),
+            help="학생 개인 목표가 반 목표보다 먼저 적용됩니다.",
+        )
+        left, right = st.columns(2)
+        start = left.date_input("시작하는 날",
+                                value=date.fromisoformat(g["start_on"]) if g.get("start_on") else date.today())
+        end = right.date_input("끝나는 날",
+                               value=date.fromisoformat(g["end_on"]) if g.get("end_on") else date.today())
+        topic = st.text_input("주제", value=g.get("topic") or "",
+                              placeholder="예: 동물원에서 본 동물")
+        words = st.text_input("핵심 단어 (쉼표로 구분)", value=", ".join(g.get("words") or []),
+                              placeholder="예: lion, tiger, elephant")
+        expressions = st.text_area("표현 (한 줄에 하나, 선택)",
+                                   value="\n".join(g.get("expressions") or []),
+                                   placeholder="예: I like ___.\nIt is big.")
+        task = st.text_input("과제 (선택)", value=g.get("task") or "",
+                             placeholder="예: 좋아하는 동물 2가지를 영어로 말하기")
+        min_words = st.number_input(
+            "달성 기준: 아이가 직접 말해야 하는 단어 수 (0 = 전부)",
+            min_value=0, max_value=50, value=int(g.get("min_words") or 0), step=1)
+        memo = st.text_input("메모 (선택)", value=g.get("memo") or "")
+        if st.form_submit_button("저장" if goal else "목표 만들기", type="primary"):
+            return {
+                "target_type": target[0], "target_id": target[1],
+                "start_on": start.isoformat(), "end_on": end.isoformat(),
+                "topic": topic,
+                "words": [w.strip() for w in words.replace("\n", ",").split(",")],
+                "expressions": expressions.splitlines(),
+                "task": task, "min_words": min_words or None, "memo": memo,
+            }
+    return None
+
+
+def goal_members(goal: dict, profiles: list[dict]) -> list[dict]:
+    if goal["target_type"] == "profile":
+        return [p for p in profiles if p["id"] == goal["target_id"]]
+    return [p for p in profiles if p.get("class_id") == goal["target_id"]]
+
+
+def goal_result_rows(goal: dict, profiles: list[dict]) -> list[dict]:
+    results = store.goal_results_for_goal(goal["id"])
+    rows = []
+    for p in goal_members(goal, profiles):
+        mine = [r for r in results if r["profile_id"] == p["id"]]
+        used = sorted({w for r in mine for w in r["words_used"]})
+        heard = sorted({w for r in mine for w in r["words_heard"]})
+        task = ("✅" if any(r["task_done"] for r in mine) else "아직") if goal.get("task") else "-"
+        rows.append({
+            "학생": p["name"],
+            "달성": "✅ 달성" if any(r["achieved"] for r in mine) else ("진행 중" if mine else "아직 대화 없음"),
+            "대화": len(mine),
+            f"아이가 말한 단어 (기준 {goals.required_words(goal)}개)":
+                f"{len(used)}/{len(goal.get('words') or [])} · " + ", ".join(used),
+            "캐릭터가 들려준 단어": ", ".join(heard),
+            "과제": task,
+        })
+    return rows
+
+
+def goals_page(profiles: list[dict], classes: list[dict]) -> None:
+    st.title("학습 목표")
+    show_flash()
+    st.caption(
+        "반이나 학생에게 기간을 정해 오늘의 주제·핵심 단어·표현·과제를 겁니다. "
+        "목표가 있으면 캐릭터가 친구처럼 자연스럽게 그 주제로 이끌고, 아이가 단어를 "
+        "직접 말하고 과제를 하면 '달성'으로 보고 일상 대화로 돌아갑니다. "
+        "아이에게는 수업처럼 보이지 않습니다."
+    )
+    with st.expander("➕ 새 목표 만들기", expanded=False):
+        values = goal_form("new_goal", profiles, classes)
+        if values:
+            try:
+                store.create_goal(**values)
+            except ValueError as e:
+                st.error(str(e))
+            else:
+                flash("목표를 만들었어요.")
+                st.rerun()
+
+    all_goals = store.list_goals()
+    if not all_goals:
+        st.info("아직 목표가 없어요.")
+        return
+    day = date.today().isoformat()
+    groups = (
+        ("진행 중", [g for g in all_goals if g["start_on"] <= day <= g["end_on"]]),
+        ("예정", [g for g in all_goals if g["start_on"] > day]),
+        ("지난 목표", [g for g in all_goals if g["end_on"] < day]),
+    )
+    for title, items in groups:
+        if not items:
+            continue
+        st.subheader(f"{title} ({len(items)})")
+        for g in items:
+            period = g["start_on"] if g["start_on"] == g["end_on"] else f"{g['start_on']} ~ {g['end_on']}"
+            header = (f"{period} · {target_label((g['target_type'], g['target_id']), profiles, classes)}"
+                      f" · {g['topic']}")
+            with st.expander(header):
+                st.markdown(
+                    f"**핵심 단어:** {', '.join(g['words']) or '-'}  \n"
+                    f"**표현:** {' / '.join(g['expressions']) or '-'}  \n"
+                    f"**과제:** {g.get('task') or '-'}  \n"
+                    f"**달성 기준:** 단어 {goals.required_words(g)}개"
+                    + (" + 과제" if g.get("task") else "")
+                )
+                rows = goal_result_rows(g, profiles)
+                if rows:
+                    st.dataframe(rows, hide_index=True, width="stretch")
+                else:
+                    st.caption("이 목표를 받을 학생이 없어요. 반에 학생을 넣어 주세요.")
+                st.markdown("**수정**")
+                values = goal_form(f"edit_goal_{g['id']}", profiles, classes, g)
+                if values:
+                    try:
+                        store.update_goal(g["id"], **values)
+                    except ValueError as e:
+                        st.error(str(e))
+                    else:
+                        flash("목표를 저장했어요.")
+                        st.rerun()
+                sure = st.checkbox("이 목표를 지울게요 (결과 기록도 함께 지워짐)",
+                                   key=f"sure_g_{g['id']}")
+                if st.button("목표 삭제", key=f"del_g_{g['id']}", disabled=not sure):
+                    store.delete_goal(g["id"])
+                    flash("목표를 지웠어요.")
+                    st.rerun()
+
+
+def student_goals(profile: dict, profiles: list[dict], classes: list[dict]) -> None:
+    current = goals.active_goal(profile)
+    if current:
+        done = goals.already_achieved(profile["id"], current)
+        st.markdown(
+            f"**지금 걸린 목표:** {current['topic']} "
+            f"({target_label((current['target_type'], current['target_id']), profiles, classes)}) — "
+            + ("✅ 달성, 이제 일상 대화" if done else "진행 중")
+        )
+    else:
+        st.caption("지금 걸린 목표가 없어요. 일상 대화를 합니다.")
+    results = store.goal_results_for_profile(profile["id"])
+    if not results:
+        return
+    by_id = {g["id"]: g for g in store.list_goals()}
+    st.dataframe([
+        {
+            "날짜": short_time(r.get("updated_at")),
+            "목표": (by_id.get(r["goal_id"]) or {}).get("topic", "(지운 목표)"),
+            "아이가 말한 단어": ", ".join(r["words_used"]),
+            "들려준 단어": ", ".join(r["words_heard"]),
+            "과제": "-" if r["task_done"] is None else ("✅" if r["task_done"] else "아직"),
+            "달성": "✅" if r["achieved"] else "",
+        }
+        for r in results
+    ], hide_index=True, width="stretch")
+
+
 # ── 실행 ─────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -447,11 +632,14 @@ def main() -> None:
     if selected == "classes":
         classes_page(profiles, classes)
         return
+    if selected == "goals":
+        goals_page(profiles, classes)
+        return
     profile = next((p for p in profiles if p["id"] == selected), None)
     if profile is None:
         overview(profiles, classes)
     else:
-        student(profile, classes)
+        student(profile, classes, profiles)
 
 
 main()

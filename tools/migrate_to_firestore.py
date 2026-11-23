@@ -153,6 +153,7 @@ def main() -> int:
             "started_at": s["started_at"], "ended_at": s.get("ended_at"),
             "turn_count": turns.get(s["id"], 0),
             "user_turns": user_turns.get(s["id"], 0),
+            "goal_id": int(s["goal_id"]) if s.get("goal_id") is not None else None,
         })
 
     # 메시지 순서는 원래 id 순서를 그대로 지킵니다.
@@ -184,8 +185,32 @@ def main() -> int:
             entry.get("note_ko"), created_at=entry["created_at"],
         ))
 
+    def _list(value):
+        return json.loads(value) if isinstance(value, str) else list(value or [])
+
+    max_gid = 0
+    for g in data["goals"]:
+        max_gid = max(max_gid, int(g["id"]))
+        writer.set(fs._goal_ref(g["id"]), {
+            **{k: g.get(k) for k in store.GOAL_FIELDS},
+            "words": _list(g.get("words")), "expressions": _list(g.get("expressions")),
+            "created_at": g["created_at"],
+        })
+
+    for r in data["goal_results"]:
+        if r["session_id"] not in new_sid:
+            continue
+        td = r.get("task_done")
+        writer.set(db.collection("goal_results").document(new_sid[r["session_id"]]), {
+            "goal_id": int(r["goal_id"]), "profile_id": int(r["profile_id"]),
+            "words_used": _list(r.get("words_used")), "words_heard": _list(r.get("words_heard")),
+            "task_done": None if td is None else bool(td), "achieved": bool(r.get("achieved")),
+            "note": r.get("note"), "updated_at": r["updated_at"],
+        })
+
     writer.set(db.collection("meta").document("counters"),
-               {"next_profile_id": max_pid + 1, "next_class_id": max_cid + 1}, merge=True)
+               {"next_profile_id": max_pid + 1, "next_class_id": max_cid + 1,
+                "next_goal_id": max_gid + 1}, merge=True)
     try:
         writer.flush()
     except Exception as e:
@@ -205,6 +230,8 @@ def main() -> int:
                         for sid in new_sid.values()),
         "memories": sum(fs._count(fs._memories(p["id"])) for p in data["profiles"]),
         "learning_log": sum(fs._count(fs._learning(p["id"])) for p in data["profiles"]),
+        "goals": fs._count(db.collection("goals")),
+        "goal_results": fs._count(db.collection("goal_results")),
     }
     ok = True
     for table in store.TABLES:

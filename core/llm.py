@@ -35,6 +35,8 @@ class Reply:
     # LLM 이 실패해서 고정 인사말로 대신했으면 True.
     # 그때는 물어볼 이야기(followup)를 실제로 묻지 못했으므로 소진하면 안 됩니다.
     fallback: bool = False
+    # 학습 목표에 과제가 있을 때만: 아이가 과제를 했다고 캐릭터가 판단했는지.
+    task_done: bool | None = None
 
 
 # ── 프로바이더 고르기 ────────────────────────────────────────────
@@ -146,6 +148,14 @@ REPLY_SCHEMA: dict[str, Any] = {
     },
 }
 
+# 학습 목표에 과제가 있을 때: 같은 대답 안에서 과제 달성 여부도 받습니다 (추가 호출 없음).
+REPLY_TASK_SCHEMA: dict[str, Any] = {
+    **REPLY_SCHEMA,
+    "title": "character_reply_with_task",
+    "required": ["reply", "mood", "task_done"],
+    "properties": {**REPLY_SCHEMA["properties"], "task_done": {"type": "boolean"}},
+}
+
 _FORMAT_NOTE = (
     "\n\n[Output format]\n"
     "Reply with a JSON object: {\"reply\": ..., \"mood\": ...}\n"
@@ -190,35 +200,47 @@ def reply(
     memories: list[dict] | None = None,
     learning: list[dict] | None = None,
     child_name: str | None = None,
+    goal_block: str | None = None,
+    task_note: str | None = None,
 ) -> Reply:
     """history 는 [{'role': 'user'|'assistant', 'content': str}, ...] 입니다.
-    system 메시지는 여기서 직접 만들기 때문에 history 에 넣지 마세요."""
+    system 메시지는 여기서 직접 만들기 때문에 history 에 넣지 마세요.
+
+    goal_block: 오늘의 학습 목표 안내 (core/goals.prompt_block). 없으면 일상 대화.
+    task_note : 과제가 있으면 대답 JSON 에 task_done 도 받습니다."""
 
     chat = provider()
     if not chat.is_available():
         raise LLMError(chat.unavailable_reason())
 
-    system_prompt = build_system_prompt(
-        character, level, memories, learning, child_name
-    ) + _FORMAT_NOTE + _level_reminder(level)
+    system_prompt = (
+        build_system_prompt(character, level, memories, learning, child_name)
+        + (goal_block or "")
+        + _FORMAT_NOTE
+        + (f"\n- {task_note}" if task_note else "")
+        + _level_reminder(level)
+    )
 
+    task_done = None
     try:
         data = chat.structured(
             system_prompt=system_prompt,
             user_text=user_text,
-            schema=REPLY_SCHEMA,
+            schema=REPLY_TASK_SCHEMA if task_note else REPLY_SCHEMA,
             temperature=0.85,
             max_tokens=config.max_reply_tokens() + 60,
             history=history,
         )
         text = str(data.get("reply", "")).strip()
         mood = str(data.get("mood", "")).strip().lower()
+        if task_note:
+            task_done = bool(data.get("task_done"))
     except LLMError:
         # JSON 을 못 받아도 대화가 끊기면 안 되므로 평문으로 한 번 더.
         text = chat.chat(
             system_prompt=build_system_prompt(
                 character, level, memories, learning, child_name
-            ),
+            ) + (goal_block or ""),
             history=history,
             user_text=user_text,
             max_tokens=config.max_reply_tokens(),
@@ -228,7 +250,8 @@ def reply(
 
     if not text:
         raise LLMError("답변이 비어 있어요. 다시 한 번 말해볼까요?")
-    return Reply(text=text, mood=mood if mood in MOODS else "happy")
+    return Reply(text=text, mood=mood if mood in MOODS else "happy",
+                 task_done=task_done)
 
 
 def structured(system_prompt: str, user_text: str, schema: dict,
@@ -412,11 +435,13 @@ def opener(
     days_since: int | None = None,
     recent: list[str] | None = None,
     level: dict | None = None,
+    goal_hint: str | None = None,
 ) -> Reply:
     """대화를 여는 첫 마디. 실패하면 고정 인사말로 조용히 돌아갑니다.
 
     recent 는 이 캐릭터가 최근에 했던 첫 마디들입니다. 같은 말을 반복하지
-    않게 하려고 넘깁니다. level 은 이 아이(또는 반)의 수준입니다."""
+    않게 하려고 넘깁니다. level 은 이 아이(또는 반)의 수준입니다.
+    goal_hint 가 있으면(오늘의 학습 목표) 그 주제로 시작합니다 — 지난 이야기보다 먼저."""
     persona = "\n".join(character.get("persona", "").strip().splitlines()[:5])
     when = time_context()
 
@@ -425,7 +450,7 @@ def opener(
         f"Your friend {child_name} is a young child learning English. "
         "They are starting a chat with you right now.\n\n"
         f"{_when_line(days_since, when)}\n\n"
-        f"{_opener_task(followup, when)}\n\n"
+        f"{goal_hint or _opener_task(followup, when)}\n\n"
         f"{_how_to_ask(level)}\n\n"
         "[How to say it]\n"
         "- Two or three very short sentences in total. Simple words a young "

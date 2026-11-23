@@ -117,7 +117,7 @@ def _bridge_secrets() -> None:
 
 _bridge_secrets()
 
-from core import config, llm, memory, packs, stt, store, tts  # noqa: E402
+from core import config, goals, llm, memory, packs, stt, store, tts  # noqa: E402
 
 try:
     store.init_db()
@@ -151,6 +151,8 @@ DEFAULTS = {
     "parent_authed": False,
     "unlock_profile": None,
     "flash": None,
+    "goal_id": None,          # 이번 대화의 학습 목표 (없으면 일상 대화)
+    "goal_task_done": False,  # 캐릭터가 '과제를 했다'고 판단했는지
 }
 
 for key, value in DEFAULTS.items():
@@ -414,14 +416,22 @@ def start_chat(character_id: str) -> None:
     character = packs.get_character(character_id)
     level = packs.get_level(store.effective_level(profile)) or {}
 
-    # 이번에 물어볼 만한 이야깃거리가 있는지 (없으면 그냥 반갑게 인사)
-    followup, memory_id = memory.opener_followup(profile["id"])
+    # 오늘의 학습 목표. 걸려 있고 아직 못 이뤘으면 이번 대화는 목표부터,
+    # 없거나 이미 이뤘으면 일상 대화입니다.
+    goal = goals.goal_for_new_chat(profile)
+
+    # 이번에 물어볼 만한 이야깃거리가 있는지 (없으면 그냥 반갑게 인사).
+    # 목표가 있으면 목표 주제로 시작하므로, 지난 이야기는 다음 기회로 남겨둡니다.
+    followup, memory_id = (None, None) if goal else memory.opener_followup(profile["id"])
     days_since = store.days_since_last_chat(profile["id"])
 
     # 이 캐릭터가 최근에 했던 첫 마디들. 같은 인사를 되풀이하지 않게 넘깁니다.
     recent = store.recent_openers(profile["id"], character_id)
 
-    session_id = store.start_session(profile["id"], character_id)
+    session_id = store.start_session(profile["id"], character_id,
+                                     goal_id=goal["id"] if goal else None)
+    st.session_state.goal_id = goal["id"] if goal else None
+    st.session_state.goal_task_done = False
 
     # 첫 마디는 매번 LLM 으로 만듭니다. 고정 문장은 아이가 금방 외워버려서
     # 친구가 아니라 기계처럼 느껴집니다. 실패하면 llm.opener 가 알아서
@@ -434,6 +444,7 @@ def start_chat(character_id: str) -> None:
             days_since=days_since,
             recent=recent,
             level=level,
+            goal_hint=goals.opener_hint(goal) if goal else None,
         )
     greeting = hello.text
     if followup and memory_id and not hello.fallback:
@@ -687,6 +698,16 @@ def handle_turn(stage, character: dict, profile: dict, user_text: str) -> None:
     level = packs.get_level(store.effective_level(profile)) or {}
     memories, learning = memory.recall(profile["id"])
 
+    # 학습 목표: 아이가 방금 한 말까지 포함해 진행 상황을 보고, 캐릭터에게
+    # "남은 단어"나 "다 했으니 이제 자유 대화"를 알려줍니다.
+    goal = store.get_goal(st.session_state.goal_id) if st.session_state.goal_id else None
+    goal_block = task_note = None
+    if goal:
+        before = goals.progress(goal, st.session_state.messages,
+                                st.session_state.goal_task_done)
+        goal_block = goals.prompt_block(goal, before)
+        task_note = None if before["achieved"] else goals.task_note(goal)
+
     with st.spinner(f"{character['name']} 이(가) 생각하고 있어요..."):
         try:
             answer = llm.reply(
@@ -697,6 +718,8 @@ def handle_turn(stage, character: dict, profile: dict, user_text: str) -> None:
                 memories=memories,
                 learning=learning,
                 child_name=profile["name"],
+                goal_block=goal_block,
+                task_note=task_note,
             )
         except llm.LLMError as e:
             st.error(str(e))
@@ -707,6 +730,14 @@ def handle_turn(stage, character: dict, profile: dict, user_text: str) -> None:
     )
     store.add_message(session_id, "assistant", answer.text)
     index = len(st.session_state.messages) - 1
+
+    if goal:
+        if answer.task_done:
+            st.session_state.goal_task_done = True
+        after = goals.progress(goal, st.session_state.messages,
+                               st.session_state.goal_task_done)
+        # 대화가 갑자기 끊겨도 결과가 남도록 말이 오갈 때마다 저장합니다.
+        goals.save(session_id, profile["id"], goal, after)
 
     render_stage(stage, character, "talking")
     try:

@@ -317,10 +317,11 @@ def _session_row(doc) -> dict:
         "turn_count": turns,
         # SQLite 판의 message_count 와 같은 값입니다 (메시지마다 1씩 늘어남).
         "message_count": turns,
+        "goal_id": data.get("goal_id"),
     }
 
 
-def start_session(profile_id: int, character_id: str) -> str:
+def start_session(profile_id: int, character_id: str, goal_id=None) -> str:
     session_id = f"{int(profile_id)}-{uuid.uuid4()}"
     _session_ref(session_id).set({
         "profile_id": int(profile_id),
@@ -329,6 +330,7 @@ def start_session(profile_id: int, character_id: str) -> str:
         "ended_at": None,
         "turn_count": 0,
         "user_turns": 0,
+        "goal_id": None if goal_id in (None, "") else int(goal_id),
     })
     touch_profile(profile_id)
     return session_id
@@ -745,3 +747,106 @@ def set_profile_class(profile_id: int, class_id) -> None:
     if get_class(class_id) is None:
         raise ValueError("그 반을 찾을 수 없어요.")
     _profile_ref(profile_id).update({"class_id": int(class_id)})
+
+
+# ── 학습 목표 ────────────────────────────────────────────────────
+#   goals/{목표번호}            대상(반/학생), 기간, 주제, 단어, 표현, 과제
+#   goal_results/{대화 id}      그 대화의 목표 결과 (대화 id 가 문서 id 라 덮어쓰기 쉬움)
+# 목표는 몇 개 안 되므로 목록은 전부 읽습니다. 결과는 같음(==) 조건으로 찾습니다.
+
+def _goal_ref(goal_id):
+    return client().collection("goals").document(str(int(goal_id)))
+
+
+def _goal_row(doc) -> dict:
+    data = doc.to_dict() or {}
+    return {"id": int(doc.id), **{k: data.get(k) for k in _store().GOAL_FIELDS},
+            "words": list(data.get("words") or []),
+            "expressions": list(data.get("expressions") or []),
+            "created_at": data.get("created_at")}
+
+
+def list_goals() -> list[dict]:
+    rows = [_goal_row(d) for d in client().collection("goals").stream()]
+    rows.sort(key=lambda g: g["id"], reverse=True)
+    rows.sort(key=lambda g: g["start_on"] or "", reverse=True)
+    return rows
+
+
+def get_goal(goal_id) -> dict | None:
+    if goal_id in (None, ""):
+        return None
+    doc = _goal_ref(goal_id).get()
+    return _goal_row(doc) if doc.exists else None
+
+
+def create_goal(**fields) -> dict:
+    from google.cloud import firestore
+
+    g = _store()._check_goal(fields)
+    db = client()
+    counter_ref = db.collection("meta").document("counters")
+
+    @firestore.transactional
+    def _create(transaction):
+        counters = counter_ref.get(transaction=transaction).to_dict() or {}
+        new_id = int(counters.get("next_goal_id", 1))
+        transaction.set(counter_ref, {"next_goal_id": new_id + 1}, merge=True)
+        transaction.set(_goal_ref(new_id), {**g, "created_at": _store().now()})
+        return new_id
+
+    return get_goal(_create(db.transaction()))
+
+
+def update_goal(goal_id, **fields) -> dict:
+    current = get_goal(goal_id)
+    if current is None:
+        raise ValueError("그 목표를 찾을 수 없어요.")
+    g = _store()._check_goal({**{k: current.get(k) for k in _store().GOAL_FIELDS}, **fields})
+    _goal_ref(goal_id).update(g)
+    return get_goal(goal_id)
+
+
+def delete_goal(goal_id) -> None:
+    db = client()
+    batch = db.batch()
+    for doc in db.collection("goal_results").where(filter=_eq("goal_id", int(goal_id))).stream():
+        batch.delete(doc.reference)
+    batch.delete(_goal_ref(goal_id))
+    batch.commit()
+    # 대화 쪽의 goal_id 는 지우지 않아도 됩니다 (목표가 없으면 그냥 무시됨).
+
+
+def _result_row(doc) -> dict:
+    data = doc.to_dict() or {}
+    td = data.get("task_done")
+    return {"session_id": doc.id, "goal_id": data.get("goal_id"),
+            "profile_id": data.get("profile_id"),
+            "words_used": list(data.get("words_used") or []),
+            "words_heard": list(data.get("words_heard") or []),
+            "task_done": None if td is None else bool(td),
+            "achieved": bool(data.get("achieved")), "note": data.get("note"),
+            "updated_at": data.get("updated_at")}
+
+
+def save_goal_result(session_id: str, goal_id, profile_id: int, words_used: list,
+                     words_heard: list, task_done, achieved: bool,
+                     note: str | None = None) -> None:
+    client().collection("goal_results").document(str(session_id)).set({
+        "goal_id": int(goal_id), "profile_id": int(profile_id),
+        "words_used": list(words_used), "words_heard": list(words_heard),
+        "task_done": None if task_done is None else bool(task_done),
+        "achieved": bool(achieved), "note": note, "updated_at": _store().now(),
+    })
+
+
+def goal_results_for_goal(goal_id) -> list[dict]:
+    docs = client().collection("goal_results").where(filter=_eq("goal_id", int(goal_id))).stream()
+    return sorted((_result_row(d) for d in docs), key=lambda r: r["updated_at"] or "")
+
+
+def goal_results_for_profile(profile_id: int) -> list[dict]:
+    docs = client().collection("goal_results").where(
+        filter=_eq("profile_id", int(profile_id))).stream()
+    return sorted((_result_row(d) for d in docs), key=lambda r: r["updated_at"] or "",
+                  reverse=True)
