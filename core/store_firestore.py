@@ -265,6 +265,43 @@ def delete_profile(profile_id: int) -> None:
     client().recursive_delete(ref)
 
 
+def update_profile(profile_id: int, name: str | None = None,
+                   level: str | None = None) -> dict:
+    """(관리자) 이름이나 레벨을 바꿉니다. 이름을 바꿀 때는 '이름 표'도 같이
+    옮겨서, 같은 이름이 두 명 생기지 않게 합니다."""
+    from google.cloud import firestore
+
+    db = client()
+    ref = _profile_ref(profile_id)
+
+    @firestore.transactional
+    def _update(transaction):
+        doc = ref.get(transaction=transaction)
+        if not doc.exists:
+            raise ValueError("그 학생을 찾을 수 없어요.")
+        changes = {}
+        if name is not None:
+            new_name = name.strip()
+            if not new_name:
+                raise ValueError("이름을 입력해 주세요.")
+            old_name = (doc.to_dict() or {}).get("name") or ""
+            old_key, new_key = _name_key(old_name), _name_key(new_name)
+            if new_key != old_key:
+                new_ref = db.collection("profile_names").document(new_key)
+                if new_ref.get(transaction=transaction).exists:
+                    raise ValueError(f"'{new_name}' 은(는) 이미 있는 이름이에요.")
+                transaction.delete(db.collection("profile_names").document(old_key))
+                transaction.set(new_ref, {"profile_id": int(profile_id), "name": new_name})
+            changes["name"] = new_name
+        if level is not None:
+            changes["level"] = level
+        if changes:
+            transaction.update(ref, changes)
+
+    _update(db.transaction())
+    return get_profile(profile_id)
+
+
 # ── 세션 ─────────────────────────────────────────────────────────
 
 def _session_row(doc) -> dict:
@@ -310,6 +347,11 @@ def _sessions(profile_id: int):
 def list_sessions(profile_id: int, limit: int = 50) -> list[dict]:
     query = _sessions(profile_id).order_by("started_at", direction=_desc()).limit(limit)
     return [_session_row(d) for d in query.stream()]
+
+
+def delete_session(session_id: str) -> None:
+    """(관리자) 대화 한 번을 메시지째 지웁니다."""
+    client().recursive_delete(_session_ref(session_id))
 
 
 def session_is_empty(session_id: str) -> bool:
@@ -549,6 +591,12 @@ def _learning_row(profile_id, doc) -> dict:
     return {"id": f"{int(profile_id)}:{doc.id}", "profile_id": int(profile_id),
             **{k: data.get(k) for k in ("session_id", "kind", "child_said",
                                          "better_form", "note_ko", "created_at")}}
+
+
+def delete_learning_entry(entry_id) -> None:
+    """(관리자) 학습 기록 한 줄을 지웁니다. id 는 "프로필번호:문서id"."""
+    profile_id, doc_id = str(entry_id).split(":", 1)
+    _learning(profile_id).document(doc_id).delete()
 
 
 def recent_learning(profile_id: int, limit: int = 100) -> list[dict]:

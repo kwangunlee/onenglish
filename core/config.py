@@ -145,6 +145,12 @@ def gcp_service_account_json() -> str:
     return _get("GCP_SERVICE_ACCOUNT_JSON")
 
 
+def admin_password() -> str:
+    """관리자 화면(admin.py) 비밀번호. 비워두면 PARENT_PASSWORD 를 씁니다.
+    둘 다 비어 있으면 관리자 화면은 열리지 않습니다 (기록 전체가 보이므로)."""
+    return _get("ADMIN_PASSWORD") or _get("PARENT_PASSWORD")
+
+
 def parent_password() -> str:
     """기록 보기(대화 로그·기억·학습기록)를 열 때 묻는 비밀번호.
 

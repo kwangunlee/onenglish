@@ -509,6 +509,30 @@ def delete_profile(profile_id: int) -> None:
         conn.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
 
 
+def update_profile(profile_id: int, name: str | None = None,
+                   level: str | None = None) -> dict:
+    """(관리자) 이름이나 레벨을 바꿉니다. 같은 이름이 이미 있으면 ValueError."""
+    with connect() as conn:
+        if name is not None:
+            name = name.strip()
+            if not name:
+                raise ValueError("이름을 입력해 주세요.")
+            try:
+                conn.execute("UPDATE profiles SET name = ? WHERE id = ?",
+                             (name, profile_id))
+            except Exception as e:
+                if _is_duplicate(e):
+                    raise ValueError(f"'{name}' 은(는) 이미 있는 이름이에요.") from None
+                raise
+        if level is not None:
+            conn.execute("UPDATE profiles SET level = ? WHERE id = ?",
+                         (level, profile_id))
+    profile = get_profile(profile_id)
+    if profile is None:
+        raise ValueError("그 학생을 찾을 수 없어요.")
+    return profile
+
+
 # ── 세션 ─────────────────────────────────────────────────────────
 
 def start_session(profile_id: int, character_id: str) -> str:
@@ -547,6 +571,13 @@ def session_is_empty(session_id: str) -> bool:
             "SELECT COUNT(*) AS n FROM messages WHERE session_id = ?", (session_id,)
         ).fetchone()
         return row["n"] == 0
+
+
+def delete_session(session_id: str) -> None:
+    """(관리자) 대화 한 번을 메시지째 지웁니다. 그 대화에서 나온 기억과 학습
+    기록은 남습니다 (어느 대화에서 나왔는지만 비워짐)."""
+    with connect() as conn:
+        conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
 
 
 # ── 메시지 ───────────────────────────────────────────────────────
@@ -753,6 +784,12 @@ def add_learning_entry(
         )
 
 
+def delete_learning_entry(entry_id) -> None:
+    """(관리자) 학습 기록 한 줄을 지웁니다."""
+    with connect() as conn:
+        conn.execute("DELETE FROM learning_log WHERE id = ?", (entry_id,))
+
+
 def recent_learning(profile_id: int, limit: int = 100) -> list[dict]:
     with connect() as conn:
         return _rows(conn.execute(
@@ -807,6 +844,8 @@ _FIRESTORE_FUNCTIONS = (
     "recent_openers", "mark_opener_used", "days_since_last_chat",
     "orphan_sessions", "memory_exists", "add_learning_entry",
     "recent_learning", "frequent_mistakes", "profile_stats",
+    # 관리자 화면용
+    "update_profile", "delete_session", "delete_learning_entry",
 )
 
 
