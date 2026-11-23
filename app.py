@@ -382,12 +382,21 @@ def start_chat(character_id: str) -> None:
 
     session_id = store.start_session(profile["id"], character_id)
 
-    with st.spinner(f"{character['name']} 이(가) 오고 있어요..."):
-        hello = llm.opener(
-            character=character,
-            child_name=profile["name"],
-            followup=followup,
-            days_since=days_since,
+    # 물어볼 게 있을 때만 LLM 으로 인사말을 만듭니다. 없으면 파일에 있는
+    # 고정 인사말을 그대로 써서 호출 한 번과 기다리는 시간을 아낍니다.
+    # (없는 날에 LLM 이 하는 일은 "안녕"을 바꿔 말하는 것뿐입니다)
+    if followup:
+        with st.spinner(f"{character['name']} 이(가) 오고 있어요..."):
+            hello = llm.opener(
+                character=character,
+                child_name=profile["name"],
+                followup=followup,
+                days_since=days_since,
+            )
+    else:
+        hello = llm.Reply(
+            text=llm.greeting_for(character, days_since is not None),
+            mood="happy",
         )
     greeting = hello.text
     if followup and memory_id:
@@ -417,8 +426,11 @@ def start_chat(character_id: str) -> None:
             if audio:
                 st.session_state.audio_cache[0] = audio
                 st.session_state.speak_index = 0
-        except llm.LLMError:
-            pass  # 목소리가 안 나와도 대화는 시작되어야 합니다.
+        except llm.LLMError as e:
+            # 대화는 계속되어야 하지만, 왜 소리가 없는지는 알려줍니다.
+            # 조용히 넘기면 "소리가 안 난다"는 것만 알고 원인을 못 찾습니다.
+            flash(f"목소리를 못 만들었어요. 글자로는 대화할 수 있어요.\n\n{e}",
+                  "warning")
 
     go("chat")
 
@@ -604,9 +616,8 @@ def handle_turn(stage, character: dict, profile: dict, user_text: str) -> None:
         if audio:
             st.session_state.audio_cache[index] = audio
             st.session_state.speak_index = index
-    except llm.LLMError:
-        # 목소리가 안 나와도 대화는 계속되어야 합니다.
-        pass
+    except llm.LLMError as e:
+        st.warning(f"목소리를 못 만들었어요. 대화는 계속할 수 있어요.\n\n{e}")
 
     st.session_state.mic_round += 1
     st.rerun()
