@@ -69,7 +69,7 @@ st.set_page_config(
 _SECRET_KEYS = (
     "OPENAI_API_KEY", "CHAT_MODEL", "STT_MODEL", "TTS_MODEL",
     "MAX_HISTORY_TURNS", "MAX_REPLY_TOKENS", "MEMORY_RECALL_COUNT",
-    "APP_PASSWORD", "PARENT_PASSWORD", "SIGNUP_CODE",
+    "APP_PASSWORD", "PARENT_PASSWORD",
     "VOICE_MODE",
     # 프로바이더 선택: AI_PROVIDER 한 줄이면 대화·음성인식·음성합성이 모두 바뀝니다.
     "AI_PROVIDER", "CHAT_PROVIDER", "STT_PROVIDER", "TTS_PROVIDER",
@@ -260,7 +260,6 @@ def screen_profiles() -> None:
     st.divider()
 
     with st.expander("새로운 사람 추가하기", expanded=not profiles):
-        required_code = config.signup_code()
         with st.form("new_profile", clear_on_submit=True):
             name = st.text_input("이름", placeholder="예: 민준")
             password = st.text_input(
@@ -269,30 +268,17 @@ def screen_profiles() -> None:
                 help="다음에 들어올 때 이 비밀번호를 물어봐요. "
                      "잊어버리면 되돌릴 수 없으니 꼭 기억해 주세요.",
             )
-            # 공개 주소에서 모르는 사람이 프로필을 만드는 것을 막습니다.
-            # SIGNUP_CODE 를 설정하지 않으면 이 칸은 아예 나오지 않습니다.
-            code = ""
-            if required_code:
-                code = st.text_input(
-                    "가입 코드", type="password",
-                    placeholder="부모님께 받은 코드",
-                    help="새 사람을 추가할 때만 필요해요. "
-                         "한 번 만들고 나면 다시 묻지 않습니다.",
-                )
             if st.form_submit_button("추가하기", type="primary"):
-                if required_code and code != required_code:
-                    st.error("가입 코드가 맞지 않아요.")
+                try:
+                    created = store.create_profile(
+                        name, packs.default_level_id(), password
+                    )
+                except ValueError as e:
+                    st.error(str(e))
                 else:
-                    try:
-                        created = store.create_profile(
-                            name, packs.default_level_id(), password
-                        )
-                    except ValueError as e:
-                        st.error(str(e))
-                    else:
-                        st.session_state.profile = created
-                        flash(f"{created['name']} 님, 반가워요!", "success")
-                        go("characters")
+                    st.session_state.profile = created
+                    flash(f"{created['name']} 님, 반가워요!", "success")
+                    go("characters")
 
 
 def enter_profile(profile: dict) -> None:

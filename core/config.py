@@ -71,15 +71,6 @@ def app_password() -> str:
     return _get("APP_PASSWORD")
 
 
-def signup_code() -> str:
-    """새 사람을 추가할 때만 묻는 코드. 비워두면 묻지 않습니다.
-
-    인터넷에 공개했을 때를 위한 것입니다. 기존 사용자는 자기 이름을 고르고
-    자기 비밀번호만 넣으면 되고(첫 화면에는 비밀번호 벽이 없습니다),
-    모르는 사람이 새 프로필을 만들어 API 비용을 쓰는 것만 막습니다."""
-    return _get("SIGNUP_CODE")
-
-
 def parent_password() -> str:
     """기록 보기(대화 로그·기억·학습기록)를 열 때 묻는 비밀번호.
 

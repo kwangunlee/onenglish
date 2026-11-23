@@ -73,7 +73,6 @@ streamlit run app.py
 | | 누가 | 어디서 정하나 |
 |---|---|---|
 | **사람별 비밀번호** | 각자 본인 | 앱에서 이름을 만들 때 각자 입력 (기본 동작) |
-| 가입 코드 `SIGNUP_CODE` | 새 사람을 추가하는 사람 | `secrets.toml` |
 | 앱 비밀번호 `APP_PASSWORD` | 들어오는 모든 사람 | `secrets.toml` (보통 불필요) |
 | 부모 비밀번호 `PARENT_PASSWORD` | 기록을 볼 사람 | `secrets.toml` |
 
@@ -313,8 +312,8 @@ git push -u origin main
 1. https://share.streamlit.io 에서 깃허브 저장소를 연결합니다.
 2. 메인 파일로 `app.py` 를 지정합니다.
 3. **Settings → Secrets** 칸에 `secrets.toml` 의 내용을 그대로 붙여넣습니다.
-4. **`SIGNUP_CODE` 를 채우세요.** 모르는 사람이 새 프로필을 만들어
-   API 비용을 쓰는 것을 막습니다. 기존 사용자는 영향을 받지 않습니다.
+4. 공개 주소라 모르는 사람이 들어올 수 있다면 **`APP_PASSWORD` 를 채우세요.**
+   새 프로필을 만들어 API 비용을 쓰는 것을 막습니다.
 
 코드는 한 줄도 바꾸지 않아도 됩니다. `st.secrets` 가 양쪽에서 똑같이 동작합니다.
 
