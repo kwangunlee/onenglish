@@ -319,9 +319,69 @@ git push -u origin main
 
 > **주의:** Streamlit Community Cloud 는 앱이 재시작되면 파일이 초기화됩니다.
 > `data/onenglish.db` 에 쌓인 대화와 기억이 사라질 수 있습니다. 클라우드에서
-> 계속 쓸 거라면 `core/store.py` 를 외부 DB(Supabase, Neon 등)로 바꿔야 합니다.
-> **이 파일 하나만 바꾸면 됩니다** — 다른 모듈은 `store.py` 의 함수만 호출하고
-> SQL 을 직접 쓰지 않습니다.
+> 계속 쓸 거라면 아래 **Google Cloud SQL 연결**을 따라 하세요.
+
+### Google Cloud SQL 연결
+
+설정만 채우면 됩니다. 코드는 `CLOUD_SQL_INSTANCE` 가 있으면 Cloud SQL(PostgreSQL)을,
+없으면 예전처럼 `data/onenglish.db` 를 씁니다.
+
+> **비용:** Cloud SQL 은 무료 등급이 없습니다. 가장 작은 인스턴스도 켜져 있는 동안
+> 한 달에 대략 1~2만 원 정도 나옵니다. 시작 전에 콘솔의 가격 계산기로 확인하세요.
+
+**① 프로젝트 준비** — https://console.cloud.google.com
+1. 프로젝트를 고르거나 새로 만들고, **결제 계정**을 연결합니다.
+2. **API 및 서비스 → 라이브러리**에서 **Cloud SQL Admin API** 를 사용 설정합니다.
+
+**② 인스턴스 만들기** — **SQL → 인스턴스 만들기 → PostgreSQL**
+- 버전: **Enterprise**, 프리셋: **샌드박스/개발**, 머신: 가장 작은 공유 코어
+- 리전: 앱이 도는 곳과 가깝게. **Streamlit Cloud 면 `us-central1`**,
+  집 컴퓨터에서만 쓰면 `asia-northeast3`(서울). 멀면 화면이 눈에 띄게 느려집니다.
+- `postgres` 비밀번호를 정해 두고, 만들어질 때까지 몇 분 기다립니다.
+
+**③ DB 와 사용자** — 만든 인스턴스 안에서
+1. **데이터베이스 → 만들기**: 이름 `onenglish`
+2. **사용자 → 사용자 계정 추가**: 이름 `onenglish`, 비밀번호 정하기 (기본 제공 인증)
+3. **개요** 화면의 **연결 이름**(`프로젝트:리전:인스턴스`)을 복사해 둡니다.
+
+**④ 서비스 계정 (앱이 접속할 때 쓰는 열쇠)**
+1. **IAM 및 관리자 → 서비스 계정 → 만들기**: 이름 `onenglish-db`
+2. 역할: **Cloud SQL 클라이언트** 하나만
+3. 만든 계정 → **키 → 키 추가 → JSON** 으로 키 파일을 받습니다.
+   이 파일은 **절대 깃허브에 올리지 마세요.** 이 폴더 밖에 두는 게 안전합니다.
+
+**⑤ secrets.toml 채우기** — `secrets.toml.example` 의 "데이터베이스" 부분 참고
+```toml
+CLOUD_SQL_INSTANCE = "my-project:us-central1:onenglish-db"
+DB_USER = "onenglish"
+DB_PASSWORD = "③에서 정한 비밀번호"
+DB_NAME = "onenglish"
+
+# 파일 맨 끝에: 키 파일(JSON)의 각 항목을 옮겨 적기
+[gcp_service_account]
+type = "service_account"
+project_id = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "onenglish-db@....iam.gserviceaccount.com"
+token_uri = "https://oauth2.googleapis.com/token"
+# (나머지 항목도 키 파일에 있는 그대로)
+```
+Streamlit Cloud 라면 같은 내용을 **Settings → Secrets** 에 붙여넣습니다.
+
+**⑥ 패키지 설치 후 실행**
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+처음 연결될 때 테이블이 자동으로 만들어집니다. 연결이 안 되면 화면에 이유가 뜹니다.
+
+**⑦ (선택) 지금까지의 기록 옮기기**
+```bash
+python tools/migrate_to_cloudsql.py
+```
+`data/onenglish.db` 의 프로필·대화·기억·학습기록을 그대로 옮깁니다. 원본은
+건드리지 않고, Cloud SQL 에 이미 프로필이 있으면 섞이지 않게 멈춥니다.
+그래서 **Cloud SQL 로 연결한 앱에서 새 사람을 만들기 전에** 해야 합니다.
 
 ---
 

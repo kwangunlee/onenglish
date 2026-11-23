@@ -71,6 +71,61 @@ def app_password() -> str:
     return _get("APP_PASSWORD")
 
 
+# ── 데이터베이스 ─────────────────────────────────────────────────
+# 기본은 이 폴더 안의 SQLite 파일(data/onenglish.db)입니다.
+# CLOUD_SQL_INSTANCE 를 채우면 Google Cloud SQL(PostgreSQL)을 씁니다.
+# Streamlit Cloud 처럼 재시작 때 파일이 지워지는 곳에서는 Cloud SQL 이 필요합니다.
+
+def cloud_sql_instance() -> str:
+    """Cloud SQL 인스턴스 연결 이름. 예: my-project:asia-northeast3:onenglish-db"""
+    return _get("CLOUD_SQL_INSTANCE")
+
+
+def db_host() -> str:
+    """PostgreSQL 에 주소로 직접 붙을 때만. (Cloud SQL Auth Proxy 를 띄웠거나
+    다른 PostgreSQL 을 쓸 때) 보통은 비워두고 CLOUD_SQL_INSTANCE 를 씁니다."""
+    return _get("DB_HOST")
+
+
+def db_port() -> int:
+    return _get_int("DB_PORT", 5432)
+
+
+def db_backend() -> str:
+    """'cloudsql', 'postgres'(주소로 직접), 'sqlite' 중 하나."""
+    if cloud_sql_instance():
+        return "cloudsql"
+    if db_host():
+        return "postgres"
+    return "sqlite"
+
+
+def db_user() -> str:
+    return _get("DB_USER", "onenglish")
+
+
+def db_password() -> str:
+    return _get("DB_PASSWORD")
+
+
+def db_name() -> str:
+    return _get("DB_NAME", "onenglish")
+
+
+def cloud_sql_ip_type() -> str:
+    """PUBLIC(기본) 또는 PRIVATE. 같은 VPC 안(Cloud Run 등)에서만 PRIVATE."""
+    value = _get("CLOUD_SQL_IP_TYPE", "PUBLIC").upper()
+    return value if value in ("PUBLIC", "PRIVATE") else "PUBLIC"
+
+
+def gcp_service_account_json() -> str:
+    """Cloud SQL 에 접속할 서비스 계정 키(JSON 문자열).
+
+    비워두면 그 컴퓨터의 기본 인증(gcloud auth application-default login)을
+    씁니다. Streamlit Cloud 에서는 반드시 채워야 합니다."""
+    return _get("GCP_SERVICE_ACCOUNT_JSON")
+
+
 def parent_password() -> str:
     """기록 보기(대화 로그·기억·학습기록)를 열 때 묻는 비밀번호.
 

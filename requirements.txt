@@ -1,2 +1,5 @@
 streamlit>=1.49
 openai>=1.59
+# Google Cloud SQL (PostgreSQL) — CLOUD_SQL_INSTANCE 를 채웠을 때만 쓰입니다.
+cloud-sql-python-connector[pg8000]>=1.12
+sqlalchemy>=2.0

@@ -77,6 +77,10 @@ _SECRET_KEYS = (
     "GOOGLE_API_KEY", "GOOGLE_TTS_KEY",
     # Google 모델 이름 (바뀔 수 있어 설정으로 뺐습니다)
     "GEMINI_CHAT_MODEL", "GEMINI_STT_MODEL",
+    # 데이터베이스 (비워두면 이 컴퓨터의 SQLite 파일)
+    "CLOUD_SQL_INSTANCE", "CLOUD_SQL_IP_TYPE",
+    "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_HOST", "DB_PORT",
+    "GCP_SERVICE_ACCOUNT_JSON",
 )
 
 
@@ -99,12 +103,32 @@ def _bridge_secrets() -> None:
         if value is not None and str(value).strip():
             os.environ[key] = str(value).strip()
 
+    # 서비스 계정 키는 [gcp_service_account] 표로 붙여넣어도 됩니다.
+    # (키 파일 JSON 을 TOML 표로 옮긴 형태. Streamlit 문서의 일반적인 방식)
+    try:
+        table = secrets["gcp_service_account"]
+    except Exception:
+        table = None
+    if table:
+        import json
+        os.environ["GCP_SERVICE_ACCOUNT_JSON"] = json.dumps(dict(table))
+
 
 _bridge_secrets()
 
 from core import config, llm, memory, packs, stt, store, tts  # noqa: E402
 
-store.init_db()
+try:
+    store.init_db()
+except Exception as e:  # 연결 설정이 틀리면 빈 화면 대신 이유를 보여줍니다.
+    st.markdown('<p class="oe-title" style="font-size:1.6rem">'
+                '데이터베이스에 연결하지 못했어요</p>', unsafe_allow_html=True)
+    st.error(
+        f"{type(e).__name__}: {e}\n\n"
+        "secrets 의 CLOUD_SQL_INSTANCE · DB_USER · DB_PASSWORD · DB_NAME · "
+        "서비스 계정 키를 확인해 주세요. README 의 'Google Cloud SQL 연결' 을 참고하세요."
+    )
+    st.stop()
 
 
 # ── 공용 상태 ────────────────────────────────────────────────────
