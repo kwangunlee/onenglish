@@ -163,6 +163,20 @@ CSS = """
                    margin: .5rem 0 0 0; }
   .oe-stage-state { color: #6b6a66; font-size: .95rem; line-height: 1.6;
                     margin: .1rem 0 .4rem 0; }
+  /* ── 캐릭터 무대: 스크롤해도 항상 화면 위에 보이게 고정 ──
+     페이지 전체가 스크롤되면 사진이 위로 밀려 사라지기 때문에 sticky 로
+     붙잡아 둡니다. 배경을 칠해야 밑으로 지나가는 채팅이 비치지 않습니다.
+     사진 높이는 화면 높이에 맞춰 줄여서 채팅 공간을 남깁니다. */
+  /* 스트림릿이 keyed 컨테이너를 stLayoutWrapper 로 한 겹 더 감싸는데,
+     sticky 는 부모 높이 안에서만 붙어 있으므로 그 래퍼에 걸어야 합니다. */
+  div[data-testid="stLayoutWrapper"]:has(> .st-key-oe_stage),
+  .st-key-oe_stage { position: sticky; top: 3.75rem; /* 스트림릿 상단바 높이 */
+                     z-index: 50;
+                     background: #FFFFFF; padding-top: .3rem; }
+  .st-key-oe_stage img, .st-key-oe_stage video {
+      max-height: 26vh; width: auto !important; max-width: 100%;
+      display: block; margin: 0 auto; object-fit: contain; }
+  .st-key-oe_stage .oe-stage-name { font-size: 1.2rem; margin: .3rem 0 0 0; }
   .oe-card-name { font-size: 1.1rem; font-weight: 700; line-height: 1.5;
                   margin: .4rem 0 0 0; }
   .oe-card-tag { color: #6b6a66; font-size: .85rem; line-height: 1.6;
@@ -452,8 +466,8 @@ def render_stage(container, character: dict, state: str) -> None:
     """캐릭터 무대. 지금은 이미지지만, characters.json 의 stage.idle /
     stage.talking 에 영상 파일명을 넣으면 자동으로 영상으로 바뀝니다.
 
-    대화가 길어져도 이 영역은 화면 위에 그대로 남습니다. 아래 채팅 영역이
-    따로 스크롤되기 때문입니다."""
+    대화가 길어지거나 페이지를 스크롤해도 이 영역은 화면 위에 그대로 남습니다.
+    감싸는 컨테이너(oe_stage)가 CSS 로 sticky 고정되어 있기 때문입니다."""
     with container.container():
         videos = packs.video_paths(character)
         clip = videos.get("talking") if state == "talking" else videos.get("idle")
@@ -510,7 +524,10 @@ def screen_chat() -> None:
             finish_session()
             open_records()
 
-    stage = st.empty()
+    # key 를 준 컨테이너로 감싸야 CSS(.st-key-oe_stage)로 화면 위에 고정할 수
+    # 있습니다. 안쪽 st.empty 는 상태(듣는 중/생각 중/말하는 중)를 바꿔 그릴 때 씁니다.
+    with st.container(key="oe_stage"):
+        stage = st.empty()
     render_stage(stage, character, "idle")
 
     # ── 대화 내용 (이 영역만 스크롤됩니다) ──
