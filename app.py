@@ -375,7 +375,7 @@ def screen_characters() -> None:
                 unsafe_allow_html=True)
     show_flash()
 
-    characters = packs.characters_for_level(profile.get("level", "kids"))
+    characters = packs.characters_for_level(store.effective_level(profile))
     if not characters:
         st.error("사용할 수 있는 캐릭터가 없어요. data/packs/ 폴더를 확인해 주세요.")
         return
@@ -407,8 +407,12 @@ def screen_characters() -> None:
 
 
 def start_chat(character_id: str) -> None:
-    profile = st.session_state.profile
+    # 관리자가 그사이 반이나 레벨을 바꿨을 수 있으니, 대화를 시작할 때마다
+    # 저장소에서 최신 학생 정보를 다시 읽습니다.
+    profile = store.get_profile(st.session_state.profile["id"]) or st.session_state.profile
+    st.session_state.profile = profile
     character = packs.get_character(character_id)
+    level = packs.get_level(store.effective_level(profile)) or {}
 
     # 이번에 물어볼 만한 이야깃거리가 있는지 (없으면 그냥 반갑게 인사)
     followup, memory_id = memory.opener_followup(profile["id"])
@@ -429,6 +433,7 @@ def start_chat(character_id: str) -> None:
             followup=followup,
             days_since=days_since,
             recent=recent,
+            level=level,
         )
     greeting = hello.text
     if followup and memory_id and not hello.fallback:
@@ -679,7 +684,7 @@ def handle_turn(stage, character: dict, profile: dict, user_text: str) -> None:
 
     render_stage(stage, character, "thinking")
 
-    level = packs.get_level(profile.get("level", "kids")) or {}
+    level = packs.get_level(store.effective_level(profile)) or {}
     memories, learning = memory.recall(profile["id"])
 
     with st.spinner(f"{character['name']} 이(가) 생각하고 있어요..."):

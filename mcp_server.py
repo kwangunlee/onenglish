@@ -126,7 +126,7 @@ def chat(profile_name: str, character_id: str, message: str) -> str:
     if not character:
         return f"'{character_id}' 캐릭터를 찾을 수 없습니다."
 
-    level = packs.get_level(profile.get("level", "kids")) or {}
+    level = packs.get_level(store.effective_level(profile)) or {}
     memories, learning = memory.recall(profile["id"])
 
     try:

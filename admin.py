@@ -9,11 +9,13 @@ OnEnglish — 관리자 화면.
 버튼이 없습니다. 같은 저장소(Firestore 또는 SQLite)를 보기 때문에, 여기서 고친
 것은 아이들 화면에 바로 반영됩니다.
 
-할 수 있는 것 (1단계)
-  - 학생 전체 현황 (대화 수, 말한 횟수, 기억, 마지막 접속)
+할 수 있는 것
+  - 학생 전체 현황 (반, 수준, 대화 수, 말한 횟수, 기억, 마지막 접속)
   - 학생별 대화 기록 보기 · 대화 삭제
   - 기억 · 학습 기록 보기 · 삭제
-  - 학생 추가 · 이름/레벨 수정 · 비밀번호 재설정 · 학생 삭제
+  - 학생 추가 · 이름/레벨/반 수정 · 비밀번호 재설정 · 학생 삭제
+  - 반 관리: 반 만들기 · 반마다 수준(입문/초급/중급) · 학생 배정 · 반 삭제
+    (반에 넣은 학생은 반의 수준으로 대화합니다. 수준은 data/levels.json)
 
 비밀번호는 원래 값을 알 수 없게(해시) 저장하므로 "보기"는 안 되고 "재설정"만
 됩니다. 관리자도 아이 비밀번호를 볼 수 없는 게 안전한 구조입니다.
@@ -105,8 +107,8 @@ def gate() -> bool:
 def sidebar(profiles: list[dict]) -> int | None:
     with st.sidebar:
         st.markdown("### 학생")
-        labels = ["📋 전체 현황"] + [p["name"] for p in profiles]
-        ids = [None] + [p["id"] for p in profiles]
+        labels = ["📋 전체 현황", "🏫 반 관리"] + [p["name"] for p in profiles]
+        ids = [None, "classes"] + [p["id"] for p in profiles]
         current = st.session_state.get("admin_selected")
         index = ids.index(current) if current in ids else 0
         choice = st.radio("학생", labels, index=index, label_visibility="collapsed")
@@ -137,6 +139,16 @@ def sidebar(profiles: list[dict]) -> int | None:
     return selected
 
 
+def level_name(level_id: str | None) -> str:
+    level = packs.get_level(level_id or "") or {}
+    return level.get("name") or (level_id or "-")
+
+
+def class_name(class_id, classes: list[dict]) -> str:
+    found = next((c for c in classes if c["id"] == class_id), None)
+    return found["name"] if found else "-"
+
+
 def level_select(label: str, current: str, key: str) -> str:
     levels = packs.load_levels()
     ids = list(levels) or [current]
@@ -144,13 +156,14 @@ def level_select(label: str, current: str, key: str) -> str:
         ids.append(current)
     return st.selectbox(
         label, ids, index=ids.index(current), key=key,
-        format_func=lambda i: f"{levels.get(i, {}).get('name', i)} ({i})",
+        format_func=lambda i: (f"{levels.get(i, {}).get('name', i)} — "
+                               f"{levels.get(i, {}).get('description', '')}"),
     )
 
 
 # ── 전체 현황 ────────────────────────────────────────────────────
 
-def overview(profiles: list[dict]) -> None:
+def overview(profiles: list[dict], classes: list[dict]) -> None:
     st.title("전체 현황")
     show_flash()
     if not profiles:
@@ -161,7 +174,8 @@ def overview(profiles: list[dict]) -> None:
         stats = store.profile_stats(p["id"])
         rows.append({
             "이름": p["name"],
-            "레벨": p.get("level") or "",
+            "반": class_name(p.get("class_id"), classes),
+            "수준": level_name(store.effective_level(p)),
             "비밀번호": "있음" if store.profile_has_password(p) else "없음 ⚠️",
             "대화": stats["sessions"],
             "아이가 말한 횟수": stats["child_turns"],
@@ -178,12 +192,13 @@ def overview(profiles: list[dict]) -> None:
 
 # ── 학생 한 명 ───────────────────────────────────────────────────
 
-def student(profile: dict) -> None:
+def student(profile: dict, classes: list[dict]) -> None:
     pid = profile["id"]
     stats = store.profile_stats(pid)
     st.title(profile["name"])
     st.caption(
-        f"레벨 {profile.get('level')} · 대화 {stats['sessions']}번 · "
+        f"반 {class_name(profile.get('class_id'), classes)} · "
+        f"수준 {level_name(store.effective_level(profile))} · 대화 {stats['sessions']}번 · "
         f"말한 횟수 {stats['child_turns']} · 기억 {stats['memories']} · "
         f"학습 기록 {stats['learning']} · 마지막 접속 {short_time(profile.get('last_seen_at'))}"
     )
@@ -198,7 +213,7 @@ def student(profile: dict) -> None:
     with tabs[2]:
         learning(pid)
     with tabs[3]:
-        edit_info(profile)
+        edit_info(profile, classes)
     with tabs[4]:
         reset_password(profile)
     with tabs[5]:
@@ -282,20 +297,31 @@ def learning(pid: int) -> None:
                 st.rerun()
 
 
-def edit_info(profile: dict) -> None:
+def edit_info(profile: dict, classes: list[dict]) -> None:
+    class_ids = [None] + [c["id"] for c in classes]
+    current_class = profile.get("class_id") if profile.get("class_id") in class_ids else None
     with st.form(f"edit_{profile['id']}"):
         name = st.text_input("이름", value=profile["name"])
-        level = level_select("레벨", profile.get("level") or packs.default_level_id(),
+        chosen_class = st.selectbox(
+            "반", class_ids, index=class_ids.index(current_class),
+            key=f"class_{profile['id']}",
+            format_func=lambda i: "반 없음" if i is None else
+            f"{class_name(i, classes)} ({level_name(next(c['level'] for c in classes if c['id'] == i))})",
+        )
+        level = level_select("개인 레벨 (반이 없을 때만 쓰임)",
+                             profile.get("level") or packs.default_level_id(),
                              key=f"level_{profile['id']}")
         if st.form_submit_button("저장", type="primary"):
             try:
                 store.update_profile(profile["id"], name=name, level=level)
+                store.set_profile_class(profile["id"], chosen_class)
             except ValueError as e:
                 st.error(str(e))
             else:
                 flash("저장했어요.")
                 st.rerun()
-    st.caption("이름을 바꾸면 아이들 첫 화면의 이름도 바로 바뀝니다.")
+    st.caption("반에 넣으면 반의 수준으로 대화합니다. 이름을 바꾸면 아이들 첫 화면의 "
+               "이름도 바로 바뀝니다. 바뀐 반·수준은 아이가 다음 대화를 시작할 때부터 적용됩니다.")
 
 
 def reset_password(profile: dict) -> None:
@@ -332,6 +358,79 @@ def delete_student(profile: dict) -> None:
         st.rerun()
 
 
+# ── 반 관리 ──────────────────────────────────────────────────────
+
+def classes_page(profiles: list[dict], classes: list[dict]) -> None:
+    st.title("반 관리")
+    show_flash()
+    st.caption("반마다 수준을 정하면, 그 반 학생들은 그 수준에 맞는 말투와 질문으로 "
+               "대화합니다. 학생은 한 반에만 들어갈 수 있어요.")
+
+    with st.expander("➕ 새 반 만들기", expanded=not classes):
+        with st.form("add_class", clear_on_submit=True):
+            name = st.text_input("반 이름", placeholder="예: 월수 4시반")
+            level = level_select("수준", packs.default_level_id(), key="new_class_level")
+            memo = st.text_input("메모 (선택)", placeholder="예: 7세 3명, 영어 처음")
+            if st.form_submit_button("만들기", type="primary"):
+                try:
+                    created = store.create_class(name, level, memo)
+                except ValueError as e:
+                    st.error(str(e))
+                else:
+                    flash(f"'{created['name']}' 반을 만들었어요.")
+                    st.rerun()
+
+    if not classes:
+        st.info("아직 반이 없어요.")
+        return
+
+    st.dataframe([
+        {"반": c["name"], "수준": level_name(c["level"]),
+         "학생 수": sum(1 for p in profiles if p.get("class_id") == c["id"]),
+         "학생": ", ".join(p["name"] for p in profiles if p.get("class_id") == c["id"]),
+         "메모": c.get("memo") or ""}
+        for c in classes
+    ], hide_index=True, width="stretch")
+
+    for c in classes:
+        members = [p for p in profiles if p.get("class_id") == c["id"]]
+        with st.expander(f"🏫 {c['name']} · {level_name(c['level'])} · 학생 {len(members)}명"):
+            with st.form(f"class_{c['id']}"):
+                new_name = st.text_input("반 이름", value=c["name"])
+                new_level = level_select("수준", c["level"], key=f"class_level_{c['id']}")
+                new_memo = st.text_input("메모", value=c.get("memo") or "")
+                picked = st.multiselect(
+                    "이 반 학생", [p["id"] for p in profiles],
+                    default=[p["id"] for p in members],
+                    format_func=lambda pid: next(
+                        (f"{p['name']}" + (f"  (지금: {class_name(p.get('class_id'), classes)})"
+                                           if p.get("class_id") not in (None, c["id"]) else "")
+                         for p in profiles if p["id"] == pid), str(pid)),
+                    help="다른 반 학생을 고르면 이 반으로 옮겨집니다.",
+                )
+                if st.form_submit_button("저장", type="primary"):
+                    try:
+                        store.update_class(c["id"], name=new_name, level=new_level, memo=new_memo)
+                        for p in profiles:
+                            was_in = p.get("class_id") == c["id"]
+                            now_in = p["id"] in picked
+                            if now_in and not was_in:
+                                store.set_profile_class(p["id"], c["id"])
+                            elif was_in and not now_in:
+                                store.set_profile_class(p["id"], None)
+                    except ValueError as e:
+                        st.error(str(e))
+                    else:
+                        flash(f"'{new_name.strip()}' 반을 저장했어요.")
+                        st.rerun()
+            sure = st.checkbox("이 반을 지울게요 (학생은 지워지지 않고 '반 없음'이 됩니다)",
+                               key=f"sure_c_{c['id']}")
+            if st.button("반 삭제", key=f"del_c_{c['id']}", disabled=not sure):
+                store.delete_class(c["id"])
+                flash(f"'{c['name']}' 반을 지웠어요.")
+                st.rerun()
+
+
 # ── 실행 ─────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -340,15 +439,19 @@ def main() -> None:
     try:
         store.init_db()
         profiles = store.list_profiles()
+        classes = store.list_classes()
     except Exception as e:
         st.error(f"저장소에 연결하지 못했어요: {type(e).__name__}: {e}")
         return
     selected = sidebar(profiles)
+    if selected == "classes":
+        classes_page(profiles, classes)
+        return
     profile = next((p for p in profiles if p["id"] == selected), None)
     if profile is None:
-        overview(profiles)
+        overview(profiles, classes)
     else:
-        student(profile)
+        student(profile, classes)
 
 
 main()

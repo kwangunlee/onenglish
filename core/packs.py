@@ -25,11 +25,21 @@ def _read_json(path) -> dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def load_levels() -> dict[str, dict]:
-    """레벨 id -> 레벨 정의."""
+    """레벨 id -> 레벨 정의 (파일에 적힌 순서 그대로).
+
+    base 가 있는 레벨은 base 레벨의 rules 뒤에 자기 style 을 붙여서 rules 를
+    완성합니다. 공통 규칙(친구처럼, 암묵적 교정, 안전)은 한 곳에만 두고, 레벨마다
+    다른 부분(문장 길이, 질문 방식)만 따로 적기 위해서입니다."""
     if not config.LEVELS_PATH.exists():
         return {}
     data = _read_json(config.LEVELS_PATH)
-    return {lv["id"]: lv for lv in data.get("levels", [])}
+    levels = {lv["id"]: dict(lv) for lv in data.get("levels", [])}
+    for lv in levels.values():
+        base = levels.get(lv.get("base") or "")
+        if base and not lv.get("rules"):
+            lv["rules"] = (base.get("rules", "").rstrip() + "\n\n"
+                           + lv.get("style", "").strip())
+    return levels
 
 
 @lru_cache(maxsize=1)

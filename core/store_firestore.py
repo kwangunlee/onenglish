@@ -177,6 +177,7 @@ def _profile_row(doc) -> dict:
         "created_at": data.get("created_at"),
         "last_seen_at": data.get("last_seen_at"),
         "password_hash": data.get("password_hash"),
+        "class_id": data.get("class_id"),
     }
 
 
@@ -646,3 +647,101 @@ def profile_stats(profile_id: int) -> dict[str, Any]:
         "memories": _count(_memories(profile_id)),
         "learning": _count(_learning(profile_id)),
     }
+
+
+# ── 반 ───────────────────────────────────────────────────────────
+#   classes/{반번호}   이름, 레벨, 메모
+# 반 번호도 프로필처럼 meta/counters 로 매깁니다. 반은 몇 개 안 되므로 이름 중복은
+# 전체를 읽어 확인합니다 (읽기 몇 번이면 충분).
+
+def _class_ref(class_id):
+    return client().collection("classes").document(str(int(class_id)))
+
+
+def _class_row(doc) -> dict:
+    data = doc.to_dict() or {}
+    return {"id": int(doc.id), "name": data.get("name"), "level": data.get("level", "kids"),
+            "memo": data.get("memo"), "created_at": data.get("created_at")}
+
+
+def list_classes() -> list[dict]:
+    rows = [_class_row(d) for d in client().collection("classes").stream()]
+    return sorted(rows, key=lambda r: r["name"] or "")
+
+
+def get_class(class_id) -> dict | None:
+    if class_id in (None, ""):
+        return None
+    doc = _class_ref(class_id).get()
+    return _class_row(doc) if doc.exists else None
+
+
+def _class_name_taken(name: str, except_id=None) -> bool:
+    key = name.strip().lower()
+    return any((c["name"] or "").strip().lower() == key and c["id"] != except_id
+               for c in list_classes())
+
+
+def create_class(name: str, level: str, memo: str = "") -> dict:
+    from google.cloud import firestore
+
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("반 이름을 입력해 주세요.")
+    if _class_name_taken(name):
+        raise ValueError(f"'{name}' 반이 이미 있어요.")
+    db = client()
+    counter_ref = db.collection("meta").document("counters")
+
+    @firestore.transactional
+    def _create(transaction):
+        counters = counter_ref.get(transaction=transaction).to_dict() or {}
+        new_id = int(counters.get("next_class_id", 1))
+        transaction.set(counter_ref, {"next_class_id": new_id + 1}, merge=True)
+        transaction.set(_class_ref(new_id), {
+            "name": name, "level": level, "memo": (memo or "").strip() or None,
+            "created_at": _store().now(),
+        })
+        return new_id
+
+    return get_class(_create(db.transaction()))
+
+
+def update_class(class_id, name: str | None = None, level: str | None = None,
+                 memo: str | None = None) -> dict:
+    changes = {}
+    if name is not None:
+        name = name.strip()
+        if not name:
+            raise ValueError("반 이름을 입력해 주세요.")
+        if _class_name_taken(name, except_id=int(class_id)):
+            raise ValueError(f"'{name}' 반이 이미 있어요.")
+        changes["name"] = name
+    if level is not None:
+        changes["level"] = level
+    if memo is not None:
+        changes["memo"] = memo.strip() or None
+    if get_class(class_id) is None:
+        raise ValueError("그 반을 찾을 수 없어요.")
+    if changes:
+        _class_ref(class_id).update(changes)
+    return get_class(class_id)
+
+
+def delete_class(class_id) -> None:
+    """반을 지웁니다. 그 반 학생들은 '반 없음'이 됩니다."""
+    db = client()
+    batch = db.batch()
+    for doc in db.collection("profiles").where(filter=_eq("class_id", int(class_id))).stream():
+        batch.update(doc.reference, {"class_id": None})
+    batch.delete(_class_ref(class_id))
+    batch.commit()
+
+
+def set_profile_class(profile_id: int, class_id) -> None:
+    if class_id in (None, ""):
+        _profile_ref(profile_id).update({"class_id": None})
+        return
+    if get_class(class_id) is None:
+        raise ValueError("그 반을 찾을 수 없어요.")
+    _profile_ref(profile_id).update({"class_id": int(class_id)})

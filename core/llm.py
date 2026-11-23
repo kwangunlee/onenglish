@@ -160,6 +160,26 @@ _FORMAT_NOTE = (
 )
 
 
+def _level_reminder(level: dict | None) -> str:
+    """수준별 '길이'와 '질문 방식'을 프롬프트 맨 끝에 한 번 더 못박습니다.
+
+    긴 규칙 한가운데에만 있으면 모델이 흐려서 따릅니다. 실제로 입문 수준인데
+    "What animal did you see?" 같은 열린 질문을 했습니다. 맨 끝에 두면 가장
+    마지막에 읽은 규칙이라 잘 지킵니다."""
+    level = level or {}
+    length = (level.get("length") or "").strip()
+    question = (level.get("question_style") or "").strip()
+    if not (length or question):
+        return ""
+    lines = [f"\n\n[MOST IMPORTANT — your friend's level: {level.get('name', '')}]"]
+    if length:
+        lines.append(f"- Length: {length}")
+    if question:
+        lines.append(f"- Your question: {question}")
+    lines.append("- Check your reply against these two lines before you answer.")
+    return "\n".join(lines)
+
+
 # ── 대화 ─────────────────────────────────────────────────────────
 
 def reply(
@@ -180,7 +200,7 @@ def reply(
 
     system_prompt = build_system_prompt(
         character, level, memories, learning, child_name
-    ) + _FORMAT_NOTE
+    ) + _FORMAT_NOTE + _level_reminder(level)
 
     try:
         data = chat.structured(
@@ -335,6 +355,23 @@ _HOW_TO_ASK = """[How to ask — your friend is a beginner]
 - Exactly ONE question, at the very end. Not two questions in a row."""
 
 
+def _how_to_ask(level: dict | None) -> str:
+    """레벨에 question_style 이 있으면 '어떤 질문을 할지' 부분만 그걸로 바꿉니다.
+    (입문은 더 쉽게, 중급은 무엇·누구·왜 질문도) 없으면 기본(초급)."""
+    style = ((level or {}).get("question_style") or "").strip()
+    if not style:
+        return _HOW_TO_ASK
+    return (
+        f"[How to ask — your friend's level: {(level or {}).get('name', '')}]\n"
+        "- Ask about ONE small, concrete thing. Never a big summary question like "
+        "\"How was your day?\" or \"Tell me about your day.\"\n"
+        f"- {style}\n"
+        "- First say one tiny thing about yourself, in character, with the same "
+        "pattern you then ask with. That shows them how to answer.\n"
+        "- Exactly ONE question, at the very end."
+    )
+
+
 def _opener_task(followup: str | None, when: dict) -> str:
     if followup:
         return (
@@ -374,11 +411,12 @@ def opener(
     followup: str | None = None,
     days_since: int | None = None,
     recent: list[str] | None = None,
+    level: dict | None = None,
 ) -> Reply:
     """대화를 여는 첫 마디. 실패하면 고정 인사말로 조용히 돌아갑니다.
 
     recent 는 이 캐릭터가 최근에 했던 첫 마디들입니다. 같은 말을 반복하지
-    않게 하려고 넘깁니다."""
+    않게 하려고 넘깁니다. level 은 이 아이(또는 반)의 수준입니다."""
     persona = "\n".join(character.get("persona", "").strip().splitlines()[:5])
     when = time_context()
 
@@ -388,7 +426,7 @@ def opener(
         "They are starting a chat with you right now.\n\n"
         f"{_when_line(days_since, when)}\n\n"
         f"{_opener_task(followup, when)}\n\n"
-        f"{_HOW_TO_ASK}\n\n"
+        f"{_how_to_ask(level)}\n\n"
         "[How to say it]\n"
         "- Two or three very short sentences in total. Simple words a young "
         "child knows.\n"

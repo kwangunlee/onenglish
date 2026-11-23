@@ -118,6 +118,14 @@ def main() -> int:
     new_sid = {sid: f"{pid}-{sid}" for sid, pid in session_owner.items()}
 
     writer = _Writer(db)
+    max_cid = 0
+    for c in data["classes"]:
+        max_cid = max(max_cid, int(c["id"]))
+        writer.set(fs._class_ref(c["id"]), {
+            "name": c["name"], "level": c.get("level") or "kids",
+            "memo": c.get("memo"), "created_at": c["created_at"],
+        })
+
     max_pid = 0
     for p in data["profiles"]:
         pid = int(p["id"])
@@ -126,6 +134,7 @@ def main() -> int:
             "name": p["name"], "level": p.get("level") or "kids",
             "created_at": p["created_at"], "last_seen_at": p.get("last_seen_at"),
             "password_hash": p.get("password_hash"),
+            "class_id": int(p["class_id"]) if p.get("class_id") is not None else None,
         })
         writer.set(db.collection("profile_names").document(fs._name_key(p["name"])),
                    {"profile_id": pid, "name": p["name"]})
@@ -176,7 +185,7 @@ def main() -> int:
         ))
 
     writer.set(db.collection("meta").document("counters"),
-               {"next_profile_id": max_pid + 1}, merge=True)
+               {"next_profile_id": max_pid + 1, "next_class_id": max_cid + 1}, merge=True)
     try:
         writer.flush()
     except Exception as e:
@@ -189,6 +198,7 @@ def main() -> int:
     # 확인
     print("\n  확인:")
     counts = {
+        "classes": fs._count(db.collection("classes")),
         "profiles": fs._count(db.collection("profiles")),
         "sessions": sum(fs._count(fs._sessions(p["id"])) for p in data["profiles"]),
         "messages": sum(fs._count(fs._session_ref(sid).collection("messages"))
