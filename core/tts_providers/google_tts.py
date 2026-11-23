@@ -58,13 +58,13 @@ class GoogleProvider(Provider):
     voice_field = "voice_google"
 
     def is_available(self) -> bool:
-        return bool(config.google_api_key())
+        return bool(config.google_tts_key())
 
     def unavailable_reason(self) -> str:
         return config.MISSING_GOOGLE_KEY_MESSAGE
 
     def list_voices(self) -> list[Voice]:
-        key = config.google_api_key()
+        key = config.google_tts_key()
         if not key:
             return list(KNOWN_VOICES)
         try:
@@ -94,7 +94,7 @@ class GoogleProvider(Provider):
         if not cleaned:
             return b""
 
-        key = config.google_api_key()
+        key = config.google_tts_key()
         if not key:
             raise LLMError(config.MISSING_GOOGLE_KEY_MESSAGE)
 
@@ -153,6 +153,8 @@ class GoogleProvider(Provider):
 
     @staticmethod
     def _friendly_error(status: int, detail: str) -> str:
+
+
         if status in (401, 403):
             return (
                 "Google 음성 키가 거부됐어요.\n"

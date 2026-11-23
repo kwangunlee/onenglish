@@ -45,7 +45,7 @@ def google_api_key() -> str:
     서비스 계정 JSON 이 아니라 API 키입니다. 같은 키 하나로 대화·음성인식·
     음성합성을 모두 쓸 수 있습니다 (해당 API 들을 사용 설정해 두면).
     예전 이름인 GOOGLE_TTS_KEY 도 계속 인식합니다."""
-    for name in ("GOOGLE_API_KEY", "GOOGLE_TTS_KEY"):
+    for name in ("GOOGLE_API_KEY", "GOOGLE_GEMINI_KEY", "GOOGLE_TTS_KEY"):
         key = _get(name)
         if key and not any(m in key for m in TEMPLATE_MARKERS):
             return key
@@ -53,7 +53,16 @@ def google_api_key() -> str:
 
 
 def google_tts_key() -> str:
-    """예전 이름 호환."""
+    """Cloud Text-to-Speech 전용 키.
+
+    Gemini 와 분리해 둡니다. Google 이 Gemini 키를 AQ. 형식으로 옮기는 중인데,
+    그 형식은 권한이 Gemini 로 한정되어 Cloud TTS 에서는 거부됩니다. 그래서
+    목소리에는 GCP 콘솔에서 만든 AIza 키가 따로 필요할 수 있습니다.
+
+    GOOGLE_TTS_KEY 가 있으면 그것을, 없으면 GOOGLE_API_KEY 를 씁니다."""
+    key = _get("GOOGLE_TTS_KEY")
+    if key and not any(m in key for m in TEMPLATE_MARKERS):
+        return key
     return google_api_key()
 
 

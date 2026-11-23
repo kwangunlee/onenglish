@@ -54,6 +54,15 @@ GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 TIMEOUT = 90
 
 
+def _gemini_headers(key: str) -> dict[str, str]:
+    """키를 헤더로 보냅니다.
+
+    예전에는 ?key= 로 붙였는데, Google 이 Gemini 키를 AIza(Traffic key)에서
+    AQ.(Authentication key)로 옮기는 중이고 새 형식은 쿼리 파라미터 방식에서
+    거부될 수 있습니다. x-goog-api-key 헤더는 두 형식 모두에서 동작합니다."""
+    return {"x-goog-api-key": key, "Content-Type": "application/json"}
+
+
 def gemini_post(path: str, payload: dict[str, Any]) -> dict:
     """Gemini REST 호출. path 예: 'models/gemini-2.0-flash:generateContent'"""
     key = config.google_api_key()
@@ -63,7 +72,7 @@ def gemini_post(path: str, payload: dict[str, Any]) -> dict:
     try:
         response = requests.post(
             f"{GEMINI_BASE}/{path}",
-            params={"key": key},
+            headers=_gemini_headers(key),
             json=payload,
             timeout=TIMEOUT,
         )
@@ -86,7 +95,8 @@ def gemini_get(path: str, params: dict | None = None) -> dict:
     try:
         response = requests.get(
             f"{GEMINI_BASE}/{path}",
-            params={"key": key, **(params or {})},
+            headers=_gemini_headers(key),
+            params=params or {},
             timeout=TIMEOUT,
         )
     except Exception as e:
