@@ -37,7 +37,7 @@ _SCHEMA = {
                     "required": [
                         "kind", "summary_ko", "summary_en",
                         "people", "sentiment", "occurred_on",
-                        "followup", "expires_on",
+                        "followup", "ask_after", "expires_on",
                     ],
                     "properties": {
                         "kind": {
@@ -55,6 +55,7 @@ _SCHEMA = {
                         },
                         "occurred_on": {"type": ["string", "null"]},
                         "followup": {"type": ["string", "null"]},
+                        "ask_after": {"type": ["string", "null"]},
                         "expires_on": {"type": ["string", "null"]},
                     },
                 },
@@ -92,6 +93,7 @@ Pull out two kinds of notes.
 - people: names or words the child used for people involved, in the child's own words. Empty list if none.
 - occurred_on: "YYYY-MM-DD" if the child clearly indicated a date. If they said "today", use today's date. If unclear, use null.
 - followup: ONLY if this is something a friend would naturally ask about again next time — an open thread. Write it as a short instruction, e.g. "ask how the piano recital went", "ask if the loose tooth came out". Use null for closed facts that need no follow-up (favorites, traits, things already finished and fully told).
+- ask_after: "YYYY-MM-DD", the earliest day the follow-up makes sense. If the thing has not happened yet (e.g. "my recital is on Saturday"), use the day AFTER it happens, so the character never asks "how did it go?" before it took place. If it already happened, use tomorrow. null if there is no follow-up.
 - expires_on: "YYYY-MM-DD" after which the follow-up would feel stale. A week after the event is usually right; a few days for small things. null if there is no follow-up.
 - Skip small talk, greetings, and anything the character said about itself.
 - Do NOT record anything about the child's health conditions, family conflict, money, or anything a parent would consider private or distressing. If the child mentioned something worrying, leave it out entirely.
@@ -181,6 +183,7 @@ def extract_and_save(
             occurred_on=m.get("occurred_on") or None,
             followup=m.get("followup") or None,
             expires_on=m.get("expires_on") or None,
+            ask_after=m.get("ask_after") or None,
         )
         result["memories"] += 1
 

@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS memories (
     created_at    TEXT NOT NULL,
     followup      TEXT,
     expires_on    TEXT,
-    opener_used_at TEXT
+    opener_used_at TEXT,
+    ask_after     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS learning_log (
@@ -139,7 +140,8 @@ CREATE TABLE IF NOT EXISTS memories (
     created_at    TEXT NOT NULL,
     followup      TEXT,
     expires_on    TEXT,
-    opener_used_at TEXT
+    opener_used_at TEXT,
+    ask_after     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS learning_log (
@@ -361,6 +363,8 @@ def init_db() -> None:
         for statement in PG_SCHEMA.split(";"):
             if statement.strip():
                 conn.execute(statement)
+        # 예전 버전이 만든 테이블에 나중에 생긴 컬럼을 더합니다.
+        conn.execute("ALTER TABLE memories ADD COLUMN IF NOT EXISTS ask_after TEXT")
     _pg_ready = True
 
 
@@ -383,7 +387,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE profiles ADD COLUMN password_hash TEXT")
 
     memory_cols = {r["name"] for r in conn.execute("PRAGMA table_info(memories)")}
-    for column in ("followup", "expires_on", "opener_used_at"):
+    for column in ("followup", "expires_on", "opener_used_at", "ask_after"):
         if column not in memory_cols:
             conn.execute(f"ALTER TABLE memories ADD COLUMN {column} TEXT")
 
@@ -584,15 +588,17 @@ def add_memory(
     occurred_on: str | None = None,
     followup: str | None = None,
     expires_on: str | None = None,
+    ask_after: str | None = None,
 ) -> None:
     """followup 은 '다음에 만나면 물어볼 것'입니다. 없으면 None.
-    expires_on 이 지나면 더 이상 꺼내지 않습니다."""
+    ask_after 전에는 묻지 않고(아직 안 일어난 일), expires_on 이 지나면
+    더 이상 꺼내지 않습니다(너무 지난 일)."""
     with connect() as conn:
         conn.execute(
             "INSERT INTO memories (profile_id, session_id, kind, summary_ko,"
             " summary_en, people, sentiment, occurred_on, created_at,"
-            " followup, expires_on)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " followup, expires_on, ask_after)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 profile_id,
                 session_id,
@@ -605,6 +611,7 @@ def add_memory(
                 now(),
                 (followup or "").strip() or None,
                 (expires_on or "").strip() or None,
+                (ask_after or "").strip() or None,
             ),
         )
 
@@ -633,20 +640,45 @@ def delete_memory(memory_id: int) -> None:
 def live_followups(profile_id: int, limit: int = 5) -> list[dict]:
     """다음에 만나면 물어볼 만한 것들.
 
-    조건: followup 이 있고, 아직 만료되지 않았고, 최근에 인사말로 쓰지 않은 것.
-    '떡볶이를 좋아한다' 같은 닫힌 사실은 followup 이 비어 있어서 안 걸립니다."""
+    조건: followup 이 있고, 아직 인사말로 쓰지 않았고,
+      - 오늘 들은 이야기가 아님   (아침에 한 얘기를 오후에 "그거 어떻게 됐어?" 금지)
+      - ask_after 가 지났음       (토요일 발표회를 목요일에 "어땠어?" 금지)
+      - expires_on 이 안 지났음   (한참 지난 얘기는 어색하므로)
+    '떡볶이를 좋아한다' 같은 닫힌 사실은 followup 이 비어 있어서 안 걸립니다.
+
+    순서: 곧 만료되는 것부터. 지금 안 물으면 못 묻게 되는 이야기가 먼저입니다.
+    (expires_on IS NULL) 을 앞에 둬서 만료일 없는 것은 뒤로 보냅니다."""
+    day = today()
     with connect() as conn:
         rows = _rows(conn.execute(
             "SELECT * FROM memories WHERE profile_id = ?"
             " AND followup IS NOT NULL AND trim(followup) <> ''"
+            " AND substr(created_at, 1, 10) < ?"
+            " AND (ask_after IS NULL OR ask_after <= ?)"
             " AND (expires_on IS NULL OR expires_on >= ?)"
             " AND opener_used_at IS NULL"
-            " ORDER BY created_at DESC LIMIT ?",
-            (profile_id, today(), limit),
+            " ORDER BY (expires_on IS NULL), expires_on, created_at DESC"
+            " LIMIT ?",
+            (profile_id, day, day, day, limit),
         ))
     for r in rows:
         r["people"] = json.loads(r.get("people") or "[]")
     return rows
+
+
+def recent_openers(profile_id: int, character_id: str, limit: int = 4) -> list[str]:
+    """이 아이에게 이 캐릭터가 최근에 했던 첫 마디들 (최신순).
+    다음 인사말이 같은 말을 되풀이하지 않게 할 때 씁니다."""
+    with connect() as conn:
+        rows = _rows(conn.execute(
+            "SELECT m.content FROM sessions s JOIN messages m"
+            "   ON m.id = (SELECT MIN(id) FROM messages WHERE session_id = s.id)"
+            " WHERE s.profile_id = ? AND s.character_id = ?"
+            "   AND m.role = 'assistant'"
+            " ORDER BY s.started_at DESC LIMIT ?",
+            (profile_id, character_id, limit),
+        ))
+    return [r["content"] for r in rows]
 
 
 def mark_opener_used(memory_id: int) -> None:

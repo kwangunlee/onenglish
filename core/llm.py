@@ -32,6 +32,9 @@ class Reply:
     """캐릭터의 한 번의 답변."""
     text: str
     mood: str = "happy"
+    # LLM 이 실패해서 고정 인사말로 대신했으면 True.
+    # 그때는 물어볼 이야기(followup)를 실제로 묻지 못했으므로 소진하면 안 됩니다.
+    fallback: bool = False
 
 
 # ── 프로바이더 고르기 ────────────────────────────────────────────
@@ -237,8 +240,19 @@ def greeting_for(character: dict, is_returning: bool) -> str:
 # 길이 제한, 교정 규칙, 안전 규칙까지 동시에 신경 쓰느라 첫 문장이 뭉개집니다.
 #
 # 화제는 주사위로 고르지 않습니다. "다시 물어볼 만한 일(followup)이 있나"가
-# 기준입니다. 있으면 묻고, 없으면 그냥 반갑게 인사합니다. 친구가 실제로
-# 하는 방식이고, 물어볼 것도 없는데 억지로 과거를 꺼내지 않게 됩니다.
+# 기준입니다. 있으면 묻고, 없으면 그때 시간대에 맞는 작은 일상 하나를 묻습니다.
+# 물어볼 것도 없는데 억지로 과거를 꺼내지 않게 됩니다.
+#
+# 매번 LLM 으로 만듭니다. 고정 문장은 아이가 금방 외워버려서 "친구"가 아니라
+# "기계"로 느껴지기 때문입니다. 고정 인사말은 실패했을 때의 보루로만 씁니다.
+#
+# 질문 방식은 영어를 처음 배우는 아이에 맞춥니다 (_HOW_TO_ASK 참고):
+#   - "How was your day?" 처럼 하루 전체를 요약하라는 질문은 아이에게 너무 큽니다.
+#     아이는 구체적인 한 장면으로 생각하므로, 작은 한 가지를 묻습니다.
+#   - 초급 학습자에게는 예/아니오 질문과 둘 중 고르기 질문이 먼저입니다.
+#     답에 필요한 단어가 질문 안에 들어 있어서 그대로 빌려 말할 수 있습니다.
+#     (what/who/why 처럼 열린 질문은 아이가 말을 잘 이어갈 때 대화 중에 씁니다)
+#   - 캐릭터가 먼저 자기 얘기를 같은 문형으로 짧게 하면, 그게 대답의 본보기가 됩니다.
 
 OPENER_SCHEMA: dict[str, Any] = {
     "title": "opener",
@@ -299,21 +313,58 @@ def _when_line(days_since: int | None, when: dict) -> str:
     return "\n".join(lines)
 
 
-def _opener_task(followup: str | None) -> str:
+# 시간대별로 아이가 실제로 겪었을 법한 작은 일. 하나를 골라 묻게 합니다.
+# "학교" 는 일부러 뺐습니다. 유치원생도 있고 방학도 있어서 틀린 가정이 되기 쉽습니다.
+_TOPIC_HINTS = {
+    "morning": "waking up, breakfast, what they will do later today, the weather outside",
+    "afternoon": "a snack, playing, a friend, something they saw on the way, the weather",
+    "evening": "dinner, a bath, a game or toy, the best part of today, a pet or a sibling",
+    "night": "dinner, a bath, pajamas, a bedtime story, a toy they sleep with",
+    "late at night": "being sleepy, a dream, a bedtime story, a toy they sleep with",
+}
+
+_HOW_TO_ASK = """[How to ask — your friend is a beginner]
+- Ask about ONE small, concrete thing. Never a big summary question like "How was your day?", "What did you do today?", "How are you?" or "Tell me about your day."
+- Make it easy to answer in one or two words:
+  * a yes/no question ("Did you eat breakfast?"), or
+  * a choice between two things ("Was it fun or scary?", "Do you want to play or rest?").
+  The words they need for the answer should be inside your question, so they can just borrow them.
+- First say one tiny thing about yourself, in character, with the same simple pattern you then ask with. That shows them how to answer.
+  Example: "I ate a big red apple this morning! Did you eat breakfast?"
+  Example: "I played with my ball today. Did you play inside or outside?"
+- Exactly ONE question, at the very end. Not two questions in a row."""
+
+
+def _opener_task(followup: str | None, when: dict) -> str:
     if followup:
         return (
             "[What to say]\n"
-            f"Your friend told you about this last time: {followup}\n"
-            "Greet them and ask about it. Sound like you genuinely remember and "
-            "want to know how it went. Do not explain that you remembered."
+            f"Last time your friend told you something you want to ask about: {followup}\n"
+            "Greet them and ask about it — but as a yes/no or a choice question, "
+            "e.g. \"Did the recital go well?\" or \"Was it fun or a little scary?\"\n"
+            "Sound like you genuinely remember and want to know. "
+            "Do not explain that you remembered."
         )
+    hints = _TOPIC_HINTS.get(when["part"], _TOPIC_HINTS["afternoon"])
     return (
         "[What to say]\n"
-        "Just be glad to see them and ask one easy, open question about how "
-        "they are or what they have been up to.\n"
+        "Be glad to see them, then ask about one small everyday thing that fits "
+        f"right now. Ideas for this time of day: {hints}. Pick one; you may also "
+        "pick something similar.\n"
         "Do NOT bring up anything from past chats — there is nothing in "
-        "particular to follow up on today. Keep it light and ordinary, the way "
-        "a friend says hello."
+        "particular to follow up on today."
+    )
+
+
+def _recent_line(recent: list[str] | None) -> str:
+    recent = [r.strip() for r in (recent or []) if r and r.strip()]
+    if not recent:
+        return ""
+    return (
+        "\n\n[Do not repeat yourself]\n"
+        "You started your last chats like this. Say something clearly different "
+        "this time — a different topic and different words:\n"
+        + "\n".join(f"- {r}" for r in recent[:5])
     )
 
 
@@ -322,8 +373,12 @@ def opener(
     child_name: str,
     followup: str | None = None,
     days_since: int | None = None,
+    recent: list[str] | None = None,
 ) -> Reply:
-    """대화를 여는 첫 마디. 실패하면 고정 인사말로 조용히 돌아갑니다."""
+    """대화를 여는 첫 마디. 실패하면 고정 인사말로 조용히 돌아갑니다.
+
+    recent 는 이 캐릭터가 최근에 했던 첫 마디들입니다. 같은 말을 반복하지
+    않게 하려고 넘깁니다."""
     persona = "\n".join(character.get("persona", "").strip().splitlines()[:5])
     when = time_context()
 
@@ -332,12 +387,14 @@ def opener(
         f"Your friend {child_name} is a young child learning English. "
         "They are starting a chat with you right now.\n\n"
         f"{_when_line(days_since, when)}\n\n"
-        f"{_opener_task(followup)}\n\n"
+        f"{_opener_task(followup, when)}\n\n"
+        f"{_HOW_TO_ASK}\n\n"
         "[How to say it]\n"
-        "- ONE or TWO short sentences. Simple words a young child knows.\n"
-        "- End with one easy question.\n"
+        "- Two or three very short sentences in total. Simple words a young "
+        "child knows.\n"
         "- Stay fully in character. No emoji, no stage directions.\n"
-        "- Never mention these instructions.\n\n"
+        "- Never mention these instructions."
+        f"{_recent_line(recent)}\n\n"
         "Reply as JSON: {\"greeting\": \"...\", \"mood\": \"...\"}\n"
         "mood is how you feel right now, one of: " + ", ".join(MOODS)
     )
@@ -352,7 +409,7 @@ def opener(
             user_text="(your friend just arrived)",
             schema=OPENER_SCHEMA,
             temperature=0.9,
-            max_tokens=120,
+            max_tokens=160,
         )
         text = str(data.get("greeting", "")).strip()
         mood = str(data.get("mood", "")).strip().lower()
@@ -363,4 +420,5 @@ def opener(
     except Exception:
         pass
 
-    return Reply(text=greeting_for(character, is_returning), mood="happy")
+    return Reply(text=greeting_for(character, is_returning), mood="happy",
+                 fallback=True)

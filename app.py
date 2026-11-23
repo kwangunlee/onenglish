@@ -404,27 +404,26 @@ def start_chat(character_id: str) -> None:
     followup, memory_id = memory.opener_followup(profile["id"])
     days_since = store.days_since_last_chat(profile["id"])
 
+    # 이 캐릭터가 최근에 했던 첫 마디들. 같은 인사를 되풀이하지 않게 넘깁니다.
+    recent = store.recent_openers(profile["id"], character_id)
+
     session_id = store.start_session(profile["id"], character_id)
 
-    # 물어볼 게 있을 때만 LLM 으로 인사말을 만듭니다. 없으면 파일에 있는
-    # 고정 인사말을 그대로 써서 호출 한 번과 기다리는 시간을 아낍니다.
-    # (없는 날에 LLM 이 하는 일은 "안녕"을 바꿔 말하는 것뿐입니다)
-    if followup:
-        with st.spinner(f"{character['name']} 이(가) 오고 있어요..."):
-            hello = llm.opener(
-                character=character,
-                child_name=profile["name"],
-                followup=followup,
-                days_since=days_since,
-            )
-    else:
-        hello = llm.Reply(
-            text=llm.greeting_for(character, days_since is not None),
-            mood="happy",
+    # 첫 마디는 매번 LLM 으로 만듭니다. 고정 문장은 아이가 금방 외워버려서
+    # 친구가 아니라 기계처럼 느껴집니다. 실패하면 llm.opener 가 알아서
+    # characters.json 의 고정 인사말로 돌아갑니다.
+    with st.spinner(f"{character['name']} 이(가) 오고 있어요..."):
+        hello = llm.opener(
+            character=character,
+            child_name=profile["name"],
+            followup=followup,
+            days_since=days_since,
+            recent=recent,
         )
     greeting = hello.text
-    if followup and memory_id:
+    if followup and memory_id and not hello.fallback:
         # 같은 이야기를 매번 다시 꺼내지 않도록 도장을 찍습니다.
+        # 고정 인사말로 대신했으면 실제로 묻지 못했으니 다음 기회로 남겨둡니다.
         store.mark_opener_used(memory_id)
 
     store.add_message(session_id, "assistant", greeting)
