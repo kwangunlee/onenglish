@@ -51,8 +51,9 @@ COMMIT_MESSAGE = """OnEnglish: 어린이 일상 영어 대화 친구
 # 실제 키처럼 생긴 것들
 PATTERNS = {
     "OpenAI API 키": re.compile(r"sk-[A-Za-z0-9_\-]{20,}"),
-    "Google API 키": re.compile(r"AIza[0-9A-Za-z_\-]{30,}",
-    r"AQ\.[A-Za-z0-9_\-]{20,}"),
+    "Google API 키": re.compile(r"AIza[0-9A-Za-z_\-]{30,}"),
+    # Google이 새로 발급하는 Authentication key 형식
+    "Google 인증 키": re.compile(r"AQ\.[A-Za-z0-9_\-]{20,}"),
     "서비스 계정 비밀키": re.compile(r'"private_key"\s*:\s*"-----BEGIN'),
 }
 # 예시/테스트용이라 괜찮은 것들
