@@ -19,11 +19,16 @@ sys.path.insert(0, str(ROOT))
 os.environ["OPENAI_API_KEY"] = "sk-test-smoke-0000000000000000000000000000"
 os.environ.setdefault("APP_PASSWORD", "")
 
-# 테스트 중 실제 DB 를 건드리지 않도록 임시 폴더로 돌립니다.
+# 테스트 중 실제 DB 를 건드리지 않도록 임시 폴더의 SQLite 로 돌립니다.
 _tmp = tempfile.mkdtemp(prefix="onenglish-smoke-")
 from core import config  # noqa: E402
 config.DATA_DIR = Path(_tmp)
 config.DB_PATH = Path(_tmp) / "test.db"
+
+# secrets.toml 에 DB_BACKEND = "firestore" 가 있으면, 앱이 시작할 때 그 값을
+# 환경변수로 옮겨서 실제 Firestore 에 테스트 기록이 들어갑니다(실제로 그랬습니다).
+# 환경변수와 상관없이 무조건 임시 SQLite 를 쓰도록 고정합니다.
+config.db_backend = lambda: "sqlite"
 
 from streamlit.testing.v1 import AppTest  # noqa: E402
 

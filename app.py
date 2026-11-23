@@ -563,6 +563,7 @@ def screen_chat() -> None:
     # 실제 확대는 CSS 에서 합니다 (.st-key-oe_mic). 스트림릿 위젯은
     # st.markdown 으로 감싸지지 않기 때문에 컨테이너 key 로 잡습니다.
     with st.container(key="oe_mic"):
+        show_flash()  # "잘 안 들렸어요" 같은 안내가 여기 뜹니다
         st.markdown(
             '<p class="oe-mic-label">눌러서 말하기</p>'
             '<p class="oe-mic-hint">말이 끝나면 한 번 더 누르세요</p>',
@@ -583,14 +584,19 @@ def screen_chat() -> None:
         if audio_bytes and digest != st.session_state.last_audio_hash:
             st.session_state.last_audio_hash = digest
             render_stage(stage, character, "thinking")
+            error = None
             with st.spinner("듣고 있어요..."):
                 try:
                     user_text = stt.transcribe(audio_bytes, "speech.wav")
                 except llm.LLMError as e:
-                    st.error(str(e))
+                    error = str(e)
                     user_text = None
             if not user_text:
-                st.warning("잘 안 들렸어요. 한 번만 더 말해줄래요?")
+                # 아무 말 없이 녹음을 멈췄거나, 소리가 너무 작았던 경우입니다.
+                # 바로 다시 그리기 때문에 st.warning 은 보이지 않고 사라집니다.
+                # flash 로 남겨서 다음 화면에 보여줍니다.
+                flash(error or "잘 안 들렸어요. 한 번만 더 말해줄래요?",
+                      "error" if error else "warning")
                 st.session_state.mic_round += 1
                 st.rerun()
 
