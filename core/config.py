@@ -150,11 +150,11 @@ def tts_provider() -> str:
 # 모델 이름은 바뀔 수 있습니다. 안 되면 tools/check_google.py --models 로
 # 지금 쓸 수 있는 목록을 확인하고 여기 값을 바꾸세요.
 def gemini_chat_model() -> str:
-    return _get("GEMINI_CHAT_MODEL", "gemini-2.0-flash")
+    return _get("GEMINI_CHAT_MODEL", "gemini-3.8-flash")
 
 
 def gemini_stt_model() -> str:
-    return _get("GEMINI_STT_MODEL", "gemini-2.0-flash")
+    return _get("GEMINI_STT_MODEL", "gemini-3.8-flash")
 
 
 MISSING_GOOGLE_KEY_MESSAGE = """Google 을 쓰려면 GOOGLE_API_KEY 가 필요합니다.
