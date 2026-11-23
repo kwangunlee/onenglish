@@ -319,12 +319,67 @@ git push -u origin main
 
 > **주의:** Streamlit Community Cloud 는 앱이 재시작되면 파일이 초기화됩니다.
 > `data/onenglish.db` 에 쌓인 대화와 기억이 사라질 수 있습니다. 클라우드에서
-> 계속 쓸 거라면 아래 **Google Cloud SQL 연결**을 따라 하세요.
+> 계속 쓸 거라면 아래 **Firestore 연결(무료)** 을 따라 하세요.
 
-### Google Cloud SQL 연결
+### Firestore 연결 (무료)
 
-설정만 채우면 됩니다. 코드는 `CLOUD_SQL_INSTANCE` 가 있으면 Cloud SQL(PostgreSQL)을,
-없으면 예전처럼 `data/onenglish.db` 를 씁니다.
+Google 의 Firestore 는 **매일 읽기 5만 번 · 쓰기 2만 번 · 저장 1GB 까지 무료**입니다.
+가족 몇 명이 매일 대화해도 한도의 몇 % 수준이라 비용이 0 원입니다.
+설정만 채우면 되고, 코드는 `DB_BACKEND = "firestore"` 일 때 Firestore 를 씁니다.
+
+**① Firestore 만들기** — https://console.cloud.google.com
+1. 위쪽에서 프로젝트(예: `onenglish-chat`)를 고릅니다.
+2. 검색창에 **Firestore** → **데이터베이스 만들기**
+3. 데이터베이스 ID 는 **`(default)` 그대로** 둡니다. (무료 한도는 기본 DB 에만 적용)
+4. 모드는 **네이티브 모드(Native)**, 에디션을 묻는다면 **Standard**
+5. 위치: 앱이 도는 곳과 가깝게. **Streamlit Cloud 면 `nam5`(미국)**, 집 컴퓨터면
+   `asia-northeast3`(서울). **위치는 나중에 바꿀 수 없습니다.**
+6. 보안 규칙은 **프로덕션 모드**(외부 접근 차단). 앱은 서비스 계정으로 들어가서
+   규칙과 상관없이 동작합니다.
+
+**② 서비스 계정 (앱이 접속할 때 쓰는 열쇠)**
+1. **IAM 및 관리자 → 서비스 계정 → 서비스 계정 만들기**: 이름 `onenglish-db`
+2. 역할: **Cloud Datastore 사용자** 하나만 (Firestore 읽기·쓰기 권한)
+3. 만든 계정 → **키 → 키 추가 → 새 키 만들기 → JSON** 으로 키 파일을 받습니다.
+   이 파일은 **절대 깃허브에 올리지 마세요.** 이 폴더 밖에 두는 게 안전합니다.
+
+**③ secrets.toml 채우기**
+```toml
+DB_BACKEND = "firestore"
+
+# 파일 맨 끝에: 키 파일(JSON)의 각 항목을 옮겨 적기
+[gcp_service_account]
+type = "service_account"
+project_id = "onenglish-chat"
+private_key_id = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "onenglish-db@onenglish-chat.iam.gserviceaccount.com"
+client_id = "..."
+token_uri = "https://oauth2.googleapis.com/token"
+# (나머지 항목도 키 파일에 있는 그대로)
+```
+Streamlit Cloud 라면 같은 내용을 **Settings → Secrets** 에 붙여넣습니다.
+
+**④ 패키지 설치**
+```bash
+pip install -r requirements.txt
+```
+
+**⑤ (선택) 지금까지의 기록 옮기기** — 새 사람을 만들기 **전에**
+```bash
+python tools/migrate_to_firestore.py
+```
+`data/onenglish.db` 의 프로필·대화·기억·학습기록을 그대로 옮깁니다. 원본은
+건드리지 않고, Firestore 에 이미 프로필이 있으면 섞이지 않게 멈춥니다.
+
+**⑥ 실행** — `streamlit run app.py` (또는 `run.bat`). 연결이 안 되면 첫 화면에
+이유가 뜹니다. 콘솔에서 색인(index)을 따로 만들 필요는 없습니다.
+
+### (유료) Google Cloud SQL 연결
+
+Firestore 대신 PostgreSQL 이 꼭 필요할 때만. `CLOUD_SQL_INSTANCE` 가 있으면
+Cloud SQL 을 씁니다. `requirements.txt` 아래쪽 Cloud SQL 두 줄의 `#` 을 지우고
+설치해야 합니다.
 
 > **비용:** Cloud SQL 은 무료 등급이 없습니다. 가장 작은 인스턴스도 켜져 있는 동안
 > 한 달에 대략 1~2만 원 정도 나옵니다. 시작 전에 콘솔의 가격 계산기로 확인하세요.
@@ -394,7 +449,8 @@ onenglish/
 ├── core/                   로직. streamlit 을 전혀 모릅니다
 │   ├── config.py           설정 (환경변수만 읽음)
 │   ├── packs.py            캐릭터 팩 로더 (플러그인)
-│   ├── store.py            DB — 클라우드 전환 시 여기만 교체
+│   ├── store.py            DB (SQLite · Cloud SQL) — 다른 모듈은 여기 함수만 부름
+│   ├── store_firestore.py  DB (Firestore 판). DB_BACKEND="firestore" 면 store.py 가 이쪽으로 넘김
 │   ├── llm.py              대화 생성 + 프롬프트 조립
 │   ├── clients.py          OpenAI / Google 호출 공통 바닥
 │   ├── stt.py              음성 → 텍스트 (Whisper / Gemini)

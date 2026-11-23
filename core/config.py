@@ -91,8 +91,27 @@ def db_port() -> int:
     return _get_int("DB_PORT", 5432)
 
 
+def firestore_project() -> str:
+    """Firestore 가 있는 Google Cloud 프로젝트 ID. 비워두면 서비스 계정 키에
+    적힌 project_id 를 씁니다."""
+    return _get("FIRESTORE_PROJECT")
+
+
+def firestore_database() -> str:
+    """Firestore 데이터베이스 ID. 무료 한도는 기본 DB '(default)' 에만 적용됩니다."""
+    return _get("FIRESTORE_DATABASE", "(default)")
+
+
+DB_BACKENDS = ("sqlite", "firestore", "cloudsql", "postgres")
+
+
 def db_backend() -> str:
-    """'cloudsql', 'postgres'(주소로 직접), 'sqlite' 중 하나."""
+    """'firestore', 'cloudsql', 'postgres'(주소로 직접), 'sqlite' 중 하나.
+
+    DB_BACKEND 로 직접 고를 수 있습니다. 비워두면 채워진 설정을 보고 정합니다."""
+    chosen = _get("DB_BACKEND").lower()
+    if chosen in DB_BACKENDS:
+        return chosen
     if cloud_sql_instance():
         return "cloudsql"
     if db_host():
@@ -119,7 +138,7 @@ def cloud_sql_ip_type() -> str:
 
 
 def gcp_service_account_json() -> str:
-    """Cloud SQL 에 접속할 서비스 계정 키(JSON 문자열).
+    """Firestore 나 Cloud SQL 에 접속할 서비스 계정 키(JSON 문자열).
 
     비워두면 그 컴퓨터의 기본 인증(gcloud auth application-default login)을
     씁니다. Streamlit Cloud 에서는 반드시 채워야 합니다."""

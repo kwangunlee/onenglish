@@ -37,7 +37,7 @@ _SCHEMA = {
                     "required": [
                         "kind", "summary_ko", "summary_en",
                         "people", "sentiment", "occurred_on",
-                        "followup", "ask_after", "expires_on",
+                        "upcoming_on", "followup", "expires_on",
                     ],
                     "properties": {
                         "kind": {
@@ -54,8 +54,8 @@ _SCHEMA = {
                                      "tired", "sad", "neutral"],
                         },
                         "occurred_on": {"type": ["string", "null"]},
+                        "upcoming_on": {"type": ["string", "null"]},
                         "followup": {"type": ["string", "null"]},
-                        "ask_after": {"type": ["string", "null"]},
                         "expires_on": {"type": ["string", "null"]},
                     },
                 },
@@ -91,9 +91,9 @@ Pull out two kinds of notes.
 - summary_en must be a short plain English phrase written in the third person, e.g. "had a snowball fight with friends", "favorite food is tteokbokki", "has a puppy named Kkomi".
 - summary_ko is the same thing in short natural Korean, e.g. "친구들과 눈싸움을 했다".
 - people: names or words the child used for people involved, in the child's own words. Empty list if none.
-- occurred_on: "YYYY-MM-DD" if the child clearly indicated a date. If they said "today", use today's date. If unclear, use null.
+- occurred_on: "YYYY-MM-DD" for something that ALREADY happened, if the child indicated when ("today" = today, "yesterday" = the day before). null for things that have not happened yet, or if unclear.
+- upcoming_on: "YYYY-MM-DD" for something that has NOT happened yet, read from "Next 7 days" in the calendar. Example: today is Monday and the child says "my recital is on Saturday" -> the Saturday listed under "Next 7 days". "tomorrow" = the first day under "Next 7 days". null if it already happened or no day was given.
 - followup: ONLY if this is something a friend would naturally ask about again next time — an open thread. Write it as a short instruction, e.g. "ask how the piano recital went", "ask if the loose tooth came out". Use null for closed facts that need no follow-up (favorites, traits, things already finished and fully told).
-- ask_after: "YYYY-MM-DD", the earliest day the follow-up makes sense. If the thing has not happened yet (e.g. "my recital is on Saturday"), use the day AFTER it happens, so the character never asks "how did it go?" before it took place. If it already happened, use tomorrow. null if there is no follow-up.
 - expires_on: "YYYY-MM-DD" after which the follow-up would feel stale. A week after the event is usually right; a few days for small things. null if there is no follow-up.
 - Skip small talk, greetings, and anything the character said about itself.
 - Do NOT record anything about the child's health conditions, family conflict, money, or anything a parent would consider private or distressing. If the child mentioned something worrying, leave it out entirely.
@@ -106,6 +106,56 @@ Pull out two kinds of notes.
 - Return an empty list if nothing stands out.
 
 Respond only with the JSON object."""
+
+
+def _calendar() -> str:
+    """오늘 날짜와 요일, 앞뒤 일주일의 날짜.
+
+    아이는 "토요일에 발표회 해", "어제 수영 갔어" 처럼 요일로 말합니다. 날짜만
+    주면 모델이 요일을 날짜로 바꾸지 못해 엉뚱한 날을 고릅니다.
+    (실제로 월요일에 '토요일 발표회'를 듣고 화요일에 물으려 했습니다)
+    다가오는 일이 먼저 보이도록 '앞으로 7일'을 먼저 적습니다."""
+    from datetime import date, timedelta
+
+    today = date.fromisoformat(store.today())
+    lines = [f"Today is {today.isoformat()} ({today:%A})."]
+    past = [f"{d:%A} {d.isoformat()}" for d in
+            (today - timedelta(days=n) for n in range(7, 0, -1))]
+    coming = [f"{d:%A} {d.isoformat()}" for d in
+              (today + timedelta(days=n) for n in range(1, 8))]
+    lines.append("Next 7 days: " + ", ".join(coming))
+    lines.append("Past 7 days: " + ", ".join(past))
+    lines.append("When the child names a weekday, map it to the right date above.")
+    return "\n".join(lines)
+
+
+def followup_window(occurred_on: str | None, expires_on: str | None,
+                    has_followup: bool) -> tuple[str | None, str | None]:
+    """다시 물어도 되는 기간 (ask_after, expires_on) 을 코드로 정합니다.
+
+    모델은 "그 일이 언제인지"(occurred_on)만 고르고, 날짜 계산은 여기서 합니다.
+    모델에게 "그다음 날"까지 계산시키면 자주 틀렸기 때문입니다.
+      - ask_after : 그 일이 끝난 다음 날. 이미 지난 일이거나 날짜가 없으면 내일.
+                    (같은 날에는 절대 묻지 않음)
+      - expires_on: ask_after 로부터 최소 3일은 남게. 모델 값이 없으면 7일 뒤.
+    """
+    from datetime import date, timedelta
+
+    if not has_followup:
+        return None, None
+    today = date.fromisoformat(store.today())
+    ask = today + timedelta(days=1)
+    try:
+        event = date.fromisoformat((occurred_on or "").strip()[:10])
+        ask = max(ask, event + timedelta(days=1))
+    except ValueError:
+        pass
+    try:
+        expires = date.fromisoformat((expires_on or "").strip()[:10])
+    except ValueError:
+        expires = ask + timedelta(days=7)
+    expires = max(expires, ask + timedelta(days=3))
+    return ask.isoformat(), expires.isoformat()
 
 
 def _transcript(messages: list[dict], child_name: str) -> str:
@@ -123,7 +173,7 @@ def extract(messages: list[dict], child_name: str = "The child") -> dict:
         return {"memories": [], "learning": []}
 
     user_text = (
-        f"Today is {store.today()}.\n"
+        f"{_calendar()}\n"
         f"The child is called {child_name}.\n\n"
         f"--- chat ---\n{_transcript(messages, child_name)}"
     )
@@ -172,6 +222,12 @@ def extract_and_save(
             continue
         if store.memory_exists(profile_id, summary_en):
             continue
+        followup = (m.get("followup") or "").strip() or None
+        # 다가오는 일이면 그 날짜, 이미 지난 일이면 일어난 날짜를 기준으로 계산
+        ask_after, expires_on = followup_window(
+            m.get("upcoming_on") or m.get("occurred_on"), m.get("expires_on"),
+            has_followup=bool(followup),
+        )
         store.add_memory(
             profile_id=profile_id,
             session_id=session_id,
@@ -180,10 +236,11 @@ def extract_and_save(
             summary_en=summary_en,
             people=m.get("people") or [],
             sentiment=m.get("sentiment"),
-            occurred_on=m.get("occurred_on") or None,
-            followup=m.get("followup") or None,
-            expires_on=m.get("expires_on") or None,
-            ask_after=m.get("ask_after") or None,
+            # 다가오는 일은 그 일의 날짜를 적어둡니다 (기록 화면·대화 맥락용)
+            occurred_on=m.get("occurred_on") or m.get("upcoming_on") or None,
+            followup=followup,
+            expires_on=expires_on,
+            ask_after=ask_after,
         )
         result["memories"] += 1
 

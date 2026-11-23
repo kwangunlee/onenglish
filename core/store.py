@@ -791,3 +791,37 @@ def profile_stats(profile_id: int) -> dict[str, Any]:
             (profile_id, profile_id, profile_id, profile_id),
         ).fetchone()
         return dict(row)
+
+
+# ── Firestore 로 넘기기 ──────────────────────────────────────────
+# DB_BACKEND 가 "firestore" 이면 아래 함수들은 core/store_firestore.py 의 같은
+# 이름 함수가 대신 처리합니다. 부르는 쪽(app.py 등)은 아무것도 바꾸지 않아도 됩니다.
+# 설정은 호출할 때마다 확인하므로, 실행 중에 환경변수를 바꿔도 따라갑니다.
+
+_FIRESTORE_FUNCTIONS = (
+    "init_db", "list_profiles", "get_profile", "create_profile",
+    "verify_profile_password", "set_profile_password", "touch_profile",
+    "delete_profile", "start_session", "end_session", "list_sessions",
+    "session_is_empty", "add_message", "get_messages", "add_memory",
+    "recent_memories", "all_memories", "delete_memory", "live_followups",
+    "recent_openers", "mark_opener_used", "days_since_last_chat",
+    "orphan_sessions", "memory_exists", "add_learning_entry",
+    "recent_learning", "frequent_mistakes", "profile_stats",
+)
+
+
+def _route_to_firestore(name: str, sql_version):
+    import functools
+
+    @functools.wraps(sql_version)
+    def routed(*args, **kwargs):
+        if config.db_backend() == "firestore":
+            from . import store_firestore
+            return getattr(store_firestore, name)(*args, **kwargs)
+        return sql_version(*args, **kwargs)
+    return routed
+
+
+for _name in _FIRESTORE_FUNCTIONS:
+    globals()[_name] = _route_to_firestore(_name, globals()[_name])
+del _name

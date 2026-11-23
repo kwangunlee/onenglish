@@ -34,3 +34,7 @@ voice_samples/
 
 # 수동 업로드용 임시 폴더
 _github_upload/
+
+# ── Google 서비스 계정 키 (콘솔에서 받으면 "프로젝트-12자리.json" 이름) ──
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
+*service-account*.json

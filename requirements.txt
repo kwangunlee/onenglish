@@ -1,5 +1,7 @@
 streamlit>=1.49
 openai>=1.59
-# Google Cloud SQL (PostgreSQL) — CLOUD_SQL_INSTANCE 를 채웠을 때만 쓰입니다.
-cloud-sql-python-connector[pg8000]>=1.12
-sqlalchemy>=2.0
+# Google Firestore (무료 한도 있음) — DB_BACKEND = "firestore" 일 때 쓰입니다.
+google-cloud-firestore>=2.16
+# Google Cloud SQL (유료) 을 쓸 때만 아래 두 줄의 # 을 지우세요.
+# cloud-sql-python-connector[pg8000]>=1.12
+# sqlalchemy>=2.0
