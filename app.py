@@ -201,9 +201,16 @@ CSS = """
                      z-index: 50;
                      background: #FFFFFF; padding-top: .3rem; }
   .st-key-oe_stage img, .st-key-oe_stage video {
-      max-height: 26vh; width: auto !important; max-width: 100%;
+      max-height: 16vh; width: auto !important; max-width: 100%;
       display: block; margin: 0 auto; object-fit: contain; }
   .st-key-oe_stage .oe-stage-name { font-size: 1.2rem; margin: .3rem 0 0 0; }
+  /* 채팅 상자 높이 = 화면 높이 - (상단바·캐릭터·끝내기 버튼·마이크·입력칸).
+     전체가 한 화면에 들어가야 페이지가 스크롤되지 않고, 그래야 채팅이
+     고정된 캐릭터 아래로 숨지 않습니다. 아주 작은 화면에서도 최소 150px. */
+  /* 높이는 바깥 래퍼(stLayoutWrapper)의 flex-basis 로 정해져 있어서 거기에 겁니다. */
+  div[data-testid="stLayoutWrapper"]:has(> .st-key-oe_chat) {
+      flex: 0 0 max(120px, calc(100dvh - 16vh - 470px)) !important;
+      height: max(120px, calc(100dvh - 16vh - 470px)) !important; }
   .oe-card-name { font-size: 1.1rem; font-weight: 700; line-height: 1.5;
                   margin: .4rem 0 0 0; }
   .oe-card-tag { color: #6b6a66; font-size: .85rem; line-height: 1.6;
@@ -509,11 +516,55 @@ def chat_scroll_box():
     예전에는 대화가 쌓일수록 페이지 전체가 늘어나서 캐릭터 사진이 위로 밀려
     사라졌습니다. 높이를 고정한 컨테이너에 넣으면 사진은 제자리에 남습니다.
     autoscroll 은 비교적 최근에 생긴 옵션이라, 없는 버전에서도 돌아가도록
-    한 번 걸러서 씁니다."""
+    한 번 걸러서 씁니다.
+
+    실제 높이는 CSS(.st-key-oe_chat)가 화면 높이에 맞춰 다시 정합니다.
+    고정 높이면 작은 화면에서 페이지 전체가 스크롤되고, 그러면 채팅이 위에
+    고정된 캐릭터 아래로 숨어버립니다."""
     try:
-        return st.container(height=CHAT_HEIGHT, border=False, autoscroll=True)
+        return st.container(height=CHAT_HEIGHT, border=False, autoscroll=True,
+                            key="oe_chat")
     except TypeError:
-        return st.container(height=CHAT_HEIGHT, border=False)
+        return st.container(height=CHAT_HEIGHT, border=False, key="oe_chat")
+
+
+# 아무 말도 안 들렸을 때 캐릭터가 하는 말. 매번 같으면 기계 같아서 돌려 씁니다.
+# 아이를 탓하지 않고("네가 말을 안 했어" X), 캐릭터가 못 들은 걸로 말합니다.
+ASK_AGAIN_LINES = (
+    "Oops, I didn't hear you. Can you say it again?",
+    "Hmm, it was very quiet. Can you say it one more time?",
+    "I'm listening! Can you try again, a little louder?",
+)
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _ask_again_audio(text: str, character_id: str, rate: float) -> bytes:
+    """같은 캐릭터·같은 문장·같은 속도면 한 번 만든 목소리를 다시 씁니다.
+    (자주 나오는 말이라 매번 음성 합성 요금을 낼 필요가 없습니다)"""
+    character = packs.get_character(character_id)
+    return tts.synthesize(text, rate=rate, mood="gentle", character=character) or b""
+
+
+def say_ask_again(character: dict) -> None:
+    """'다시 말해줄래?' 를 캐릭터 목소리로 들려줍니다.
+    대화 기록에는 넣지 않습니다. 실제로 오간 말이 아니기 때문입니다."""
+    count = st.session_state.get("ask_again_count", 0)
+    st.session_state.ask_again_count = count + 1
+    text = ASK_AGAIN_LINES[count % len(ASK_AGAIN_LINES)]
+
+    st.markdown(
+        f'<p class="oe-mic-hint" style="color:#5A52B5">🔊 {character["name"]}: '
+        f'{text}<br><span style="color:#8b8a86">잘 안 들렸어요. 한 번만 더 '
+        f'말해줄래요?</span></p>',
+        unsafe_allow_html=True,
+    )
+    try:
+        audio = _ask_again_audio(text, character["id"],
+                                 round(float(st.session_state.rate), 2))
+    except llm.LLMError:
+        return  # 목소리를 못 만들어도 글자 안내는 위에 이미 나왔습니다.
+    if audio:
+        st.audio(audio, format="audio/mp3", autoplay=True)
 
 
 def screen_chat() -> None:
@@ -540,6 +591,13 @@ def screen_chat() -> None:
     # 있습니다. 안쪽 st.empty 는 상태(듣는 중/생각 중/말하는 중)를 바꿔 그릴 때 씁니다.
     with st.container(key="oe_stage"):
         stage = st.empty()
+        # 왼쪽 메뉴는 처음에 닫혀 있어서 그 안의 "대화 끝내기"를 못 찾습니다.
+        # 캐릭터 바로 아래에 두면 스크롤해도 같이 고정되어 늘 보입니다.
+        # 이걸 눌러야 그날 이야기가 기억으로 정리됩니다.
+        _, mid, _ = st.columns([3, 2, 3])
+        if mid.button("대화 끝내기", key="end_chat_stage", width="stretch"):
+            finish_session()
+            go("characters")
     render_stage(stage, character, "idle")
 
     # ── 대화 내용 (이 영역만 스크롤됩니다) ──
@@ -563,10 +621,12 @@ def screen_chat() -> None:
     # 실제 확대는 CSS 에서 합니다 (.st-key-oe_mic). 스트림릿 위젯은
     # st.markdown 으로 감싸지지 않기 때문에 컨테이너 key 로 잡습니다.
     with st.container(key="oe_mic"):
-        show_flash()  # "잘 안 들렸어요" 같은 안내가 여기 뜹니다
+        show_flash()  # 음성 인식 오류 같은 안내가 여기 뜹니다
+        if st.session_state.pop("ask_again", False):
+            say_ask_again(character)
         st.markdown(
-            '<p class="oe-mic-label">눌러서 말하기</p>'
-            '<p class="oe-mic-hint">말이 끝나면 한 번 더 누르세요</p>',
+            '<p class="oe-mic-label">눌러서 말하기 <span class="oe-mic-hint" '
+            'style="font-weight:400">· 말이 끝나면 한 번 더</span></p>',
             unsafe_allow_html=True,
         )
         recording = st.audio_input(
@@ -595,8 +655,12 @@ def screen_chat() -> None:
                 # 아무 말 없이 녹음을 멈췄거나, 소리가 너무 작았던 경우입니다.
                 # 바로 다시 그리기 때문에 st.warning 은 보이지 않고 사라집니다.
                 # flash 로 남겨서 다음 화면에 보여줍니다.
-                flash(error or "잘 안 들렸어요. 한 번만 더 말해줄래요?",
-                      "error" if error else "warning")
+                if error:
+                    flash(error, "error")
+                else:
+                    # 글자 안내 대신 캐릭터가 목소리로 다시 말해달라고 합니다.
+                    # 아이는 한국어 안내문을 못 읽을 수도 있기 때문입니다.
+                    st.session_state.ask_again = True
                 st.session_state.mic_round += 1
                 st.rerun()
 
