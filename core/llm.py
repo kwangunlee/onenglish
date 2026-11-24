@@ -371,7 +371,7 @@ _HOW_TO_ASK = """[How to ask — your friend is a beginner]
 - Make it easy to answer in one or two words:
   * a yes/no question ("Did you eat breakfast?"), or
   * a choice between two things ("Was it fun or scary?", "Do you want to play or rest?").
-  The words they need for the answer should be inside your question, so they can just borrow them.
+  For a choice between two things, name both options so the child can borrow the words.
 - First say one tiny thing about yourself, in character, with the same simple pattern you then ask with. That shows them how to answer.
   Example: "I ate a big red apple this morning! Did you eat breakfast?"
   Example: "I played with my ball today. Did you play inside or outside?"
@@ -452,6 +452,7 @@ def opener(
         f"{_when_line(days_since, when)}\n\n"
         f"{goal_hint or _opener_task(followup, when)}\n\n"
         f"{_how_to_ask(level)}\n\n"
+        "For a yes/no question, just ask it naturally and stop. Never append 'Yes or no?' or coach the answer.\n\n"
         "[How to say it]\n"
         "- Two or three very short sentences in total. Simple words a young "
         "child knows.\n"
