@@ -442,6 +442,8 @@ def start_chat(character_id: str) -> None:
     st.session_state.profile = profile
     character = packs.get_character(character_id)
     level = packs.get_level(store.effective_level(profile)) or {}
+    if not character or character["audience"] != level.get("audience"):
+        go("characters")
 
     # 오늘의 학습 목표. 걸려 있고 아직 못 이뤘으면 이번 대화는 목표부터,
     # 없거나 이미 이뤘으면 일상 대화입니다.
@@ -450,6 +452,8 @@ def start_chat(character_id: str) -> None:
     # 이번에 물어볼 만한 이야깃거리가 있는지 (없으면 그냥 반갑게 인사).
     # 목표가 있으면 목표 주제로 시작하므로, 지난 이야기는 다음 기회로 남겨둡니다.
     followup, memory_id = (None, None) if goal else memory.opener_followup(profile["id"])
+    if not llm.suitable_followup(level, followup):
+        followup, memory_id = None, None
     days_since = store.days_since_last_chat(profile["id"])
 
     # 이 캐릭터가 최근에 했던 첫 마디들. 같은 인사를 되풀이하지 않게 넘깁니다.
@@ -616,6 +620,16 @@ def screen_chat() -> None:
     if not profile or not character:
         go("profiles")
 
+    profile = store.get_profile(profile["id"])
+    if not profile:
+        go("profiles")
+    st.session_state.profile = profile
+    level = packs.get_level(store.effective_level(profile)) or {}
+    if level.get("audience") != character["audience"]:
+        finish_session()
+        flash("반이 변경됐어요. 새 반의 대화 상대를 선택해 주세요.", "info")
+        go("characters")
+
     with st.sidebar:
         st.markdown(f"**{profile['name']}** · {character['name']}")
         st.session_state.rate = st.slider(
@@ -690,7 +704,8 @@ def screen_chat() -> None:
             error = None
             with st.spinner("듣고 있어요..."):
                 try:
-                    user_text = stt.transcribe(audio_bytes, "speech.wav")
+                    user_text = stt.transcribe(audio_bytes, "speech.wav",
+                                               adult=level.get("audience") == "adults")
                 except llm.LLMError as e:
                     error = str(e)
                     user_text = None

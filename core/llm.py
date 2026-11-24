@@ -11,6 +11,7 @@
 음성 연출에 전달되어, 같은 캐릭터라도 상황에 따라 목소리가 달라집니다.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -110,6 +111,26 @@ def _learning_block(learning: list[dict]) -> str:
     )
 
 
+_ADULT_TOPICS = (
+    "Treat the learner as an adult at every English level. Simplify the language, "
+    "not the age of the topic. Use concrete adult situations such as choosing a meal, "
+    "planning a trip, buying groceries or making weekend plans. Do not assume a job or family. "
+    "Do not initiate questions about playing with toys, recess, bedtime stories or school routines, "
+    "even if suggested by old memories, a previous assistant or example sentences. "
+    "If the learner brings one up now, respond to their actual context as an adult. "
+    "Frame any assigned vocabulary in an adult situation."
+)
+
+_CHILD_TOPIC = re.compile(
+    r"\b(?:toys?|playtime|recess|playground|bedtime stor(?:y|ies)|stuffed animals?)\b"
+    r"|장난감|놀이터|애착인형", re.IGNORECASE
+)
+
+
+def suitable_followup(level: dict | None, text: str | None) -> bool:
+    return not ((level or {}).get("audience") == "adults" and _CHILD_TOPIC.search(text or ""))
+
+
 def build_system_prompt(
     character: dict,
     level: dict,
@@ -132,8 +153,10 @@ def build_system_prompt(
     )
 
     prompt = "\n\n".join(p for p in parts if p)
-    prompt += _memory_block(memories or [])
+    prompt += _memory_block([m for m in memories or [] if suitable_followup(level, m.get("summary_en"))])
     prompt += _learning_block(learning or [])
+    if (level or {}).get("audience") == "adults":
+        prompt += "\n\n" + _ADULT_TOPICS
     return prompt
 
 
@@ -448,11 +471,12 @@ def opener(
     if level and level.get("audience") == "adults":
         topic = goal_hint or (
             f"Follow up naturally on this previous detail: {followup}"
-            if followup else "Start with one specific everyday topic such as food, travel or weekend plans."
+            if followup and suitable_followup(level, followup)
+            else "Open with one specific question about a meal, an errand or a weekend plan. Avoid general day summaries."
         )
         opening = (
             f"{persona}\n{level['rules']}\nYou are greeting {child_name}.\n"
-            f"{_when_line(days_since, when)}\n{topic}\n"
+            f"It is {when['part']} on {when['weekday']}.\n{topic}\n{_ADULT_TOPICS}\n"
             f"{_level_reminder(level)}\nEnd with exactly one question."
         )
     else:

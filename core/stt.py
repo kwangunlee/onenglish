@@ -52,6 +52,7 @@ def transcribe(
     audio_bytes: bytes,
     filename: str = "speech.wav",
     language: str | None = None,
+    *, adult: bool = False,
 ) -> str:
     """녹음된 오디오를 텍스트로. language=None 이면 자동 감지.
 
@@ -69,9 +70,9 @@ def transcribe(
 
     which = config.stt_provider()
     if which == "google":
-        text = _transcribe_gemini(audio_bytes, filename)
+        text = _transcribe_gemini(audio_bytes, filename, adult=adult)
     elif which == "openai":
-        text = _transcribe_whisper(audio_bytes, filename, language)
+        text = _transcribe_whisper(audio_bytes, filename, language, adult=adult)
     else:
         raise AIError(
             f"'{which}' 음성인식 프로바이더를 찾을 수 없어요. "
@@ -163,7 +164,7 @@ def provider_name() -> str:
 # ── OpenAI Whisper ───────────────────────────────────────────────
 
 def _transcribe_whisper(audio_bytes: bytes, filename: str,
-                        language: str | None) -> str:
+                        language: str | None, *, adult: bool = False) -> str:
     buffer = io.BytesIO(audio_bytes)
     # OpenAI SDK 는 파일 객체의 name 으로 포맷을 판단하므로 꼭 필요합니다.
     buffer.name = filename
@@ -171,8 +172,9 @@ def _transcribe_whisper(audio_bytes: bytes, filename: str,
     kwargs = {
         "model": config.stt_model(),
         "file": buffer,
-        "prompt": ENGLISH_HINT,
     }
+    if not adult:
+        kwargs["prompt"] = ENGLISH_HINT
     if language:
         kwargs["language"] = language
 
@@ -214,13 +216,14 @@ def _speech_only(segments) -> str:
 
 # ── Google Gemini ────────────────────────────────────────────────
 
-def _transcribe_gemini(audio_bytes: bytes, filename: str) -> str:
+def _transcribe_gemini(audio_bytes: bytes, filename: str, *, adult: bool = False) -> str:
     payload = {
-        "systemInstruction": {"parts": [{"text": _GEMINI_INSTRUCTION}]},
+        "systemInstruction": {"parts": [{"text": _GEMINI_INSTRUCTION.replace(
+            "a young child", "an adult") if adult else _GEMINI_INSTRUCTION}]},
         "contents": [{
             "role": "user",
             "parts": [
-                {"text": ENGLISH_HINT},
+                {"text": "Transcribe the recording." if adult else ENGLISH_HINT},
                 {"inline_data": {
                     "mime_type": _mime_for(filename),
                     "data": base64.b64encode(audio_bytes).decode("ascii"),
