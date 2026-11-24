@@ -5,9 +5,8 @@ OnEnglish — 관리자 화면.
     streamlit run admin.py --server.port 8502
     (윈도우: admin.bat 더블클릭)
 
-아이들이 쓰는 app.py 와 완전히 분리된 화면입니다. 아이들 화면에는 여기로 오는
-버튼이 없습니다. 같은 저장소(Firestore 또는 SQLite)를 보기 때문에, 여기서 고친
-것은 아이들 화면에 바로 반영됩니다.
+app.py의 프로필 선택 화면에서도 관리자 화면을 열 수 있습니다.
+같은 저장소를 사용하므로 변경 사항은 학생 화면에도 반영됩니다.
 
 할 수 있는 것
   - 학생 전체 현황 (반, 수준, 대화 수, 말한 횟수, 기억, 마지막 접속)
@@ -31,7 +30,6 @@ import os
 
 import streamlit as st
 
-st.set_page_config(page_title="OnEnglish 관리자", page_icon="🗂️", layout="wide")
 
 
 # ── secrets → 환경변수 (app.py 와 같은 방식) ──────────────────────
@@ -52,7 +50,9 @@ def _bridge_secrets() -> None:
             os.environ[key] = str(value).strip()
 
 
-_bridge_secrets()
+if __name__ == "__main__":
+    st.set_page_config(page_title="OnEnglish 관리자", page_icon="🗂️", layout="wide")
+    _bridge_secrets()
 
 from core import config, goals, packs, store  # noqa: E402
 
@@ -642,4 +642,5 @@ def main() -> None:
         student(profile, classes, profiles)
 
 
-main()
+if __name__ == "__main__":
+    main()

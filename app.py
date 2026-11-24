@@ -58,8 +58,8 @@ if not _running_under_streamlit():
 st.set_page_config(
     page_title="OnEnglish",
     page_icon="🌙",
-    layout="centered",
-    initial_sidebar_state="collapsed",
+    layout="wide" if st.session_state.get("screen") == "admin" else "centered",
+    initial_sidebar_state="expanded" if st.session_state.get("screen") == "admin" else "collapsed",
 )
 
 
@@ -69,7 +69,7 @@ st.set_page_config(
 _SECRET_KEYS = (
     "OPENAI_API_KEY", "CHAT_MODEL", "STT_MODEL", "TTS_MODEL",
     "MAX_HISTORY_TURNS", "MAX_REPLY_TOKENS", "MEMORY_RECALL_COUNT",
-    "APP_PASSWORD", "PARENT_PASSWORD",
+    "APP_PASSWORD", "PARENT_PASSWORD", "ADMIN_PASSWORD",
     "VOICE_MODE",
     # 프로바이더 선택: AI_PROVIDER 한 줄이면 대화·음성인식·음성합성이 모두 바뀝니다.
     "AI_PROVIDER", "CHAT_PROVIDER", "STT_PROVIDER", "TTS_PROVIDER",
@@ -269,15 +269,36 @@ def password_gate() -> bool:
 # ── 화면 1: 프로필 ───────────────────────────────────────────────
 
 def screen_profiles() -> None:
-    st.markdown('<p class="oe-title">누구세요?</p>', unsafe_allow_html=True)
-    st.markdown('<p class="oe-sub">이름을 고르면 지난 이야기를 이어서 할 수 있어요.</p>',
-                unsafe_allow_html=True)
+    st.button("관리자 페이지", icon=":material/settings:", type="tertiary",
+              on_click=st.session_state.update, args=({"screen": "admin"},))
+    st.markdown("""
+    <style>
+    .oe-welcome {
+        position: relative; overflow: hidden; border-radius: 20px;
+        background: #edf5f1; color: #193d35; padding: clamp(20px, 4vw, 32px);
+        margin-bottom: 8px;
+    }
+    .oe-welcome::after {
+        content: ""; position: absolute; right: -60px; top: -75px;
+        width: 180px; height: 180px; border: 20px solid #dcebe4;
+        border-radius: 50%; pointer-events: none;
+    }
+    .oe-welcome h1, .oe-welcome p { position: relative; z-index: 1; }
+    .oe-welcome h1 { color: inherit; font-size: 2rem; padding: 0 0 6px; }
+    .oe-welcome p { color: #38594f; margin: 0; }
+    .st-key-profile_grid button {
+        min-height: 68px; border-radius: 14px; border-inline-start: 4px solid #88b2a3;
+    }
+    </style>
+    <header class="oe-welcome"><h1>누구세요?</h1>
+    <p>이름을 고르면 지난 이야기를 이어서 할 수 있어요.</p></header>
+    """, unsafe_allow_html=True)
     show_flash()
 
     profiles = store.list_profiles()
 
     if profiles:
-        columns = st.columns(2)
+        columns = st.container(key="profile_grid").columns(2)
         for i, profile in enumerate(profiles):
             with columns[i % 2]:
                 # 비밀번호를 넣기 전에는 이름만 보여줍니다.
@@ -945,7 +966,19 @@ def main() -> None:
     if not password_gate():
         return
 
+    if st.session_state.screen == "admin":
+        import admin
+
+        def leave_admin():
+            for key in ("admin_ok", "admin_selected", "admin_flash"):
+                st.session_state.pop(key, None)
+            st.session_state.screen = "profiles"
+        st.button("← 학생 화면으로 돌아가기", on_click=leave_admin)
+        admin.main()
+        return
+
     if not config.key_is_configured():
+        st.button("관리자 화면", on_click=st.session_state.update, args=({"screen": "admin"},))
         st.markdown('<p class="oe-title">설정이 필요해요</p>',
                     unsafe_allow_html=True)
         st.warning(config.MISSING_KEY_MESSAGE)
