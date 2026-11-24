@@ -445,20 +445,34 @@ def opener(
     persona = "\n".join(character.get("persona", "").strip().splitlines()[:5])
     when = time_context()
 
+    if level and level.get("audience") == "adults":
+        topic = goal_hint or (
+            f"Follow up naturally on this previous detail: {followup}"
+            if followup else "Start with one specific everyday topic such as food, travel or weekend plans."
+        )
+        opening = (
+            f"{persona}\n{level['rules']}\nYou are greeting {child_name}.\n"
+            f"{_when_line(days_since, when)}\n{topic}\n"
+            f"{_level_reminder(level)}\nEnd with exactly one question."
+        )
+    else:
+        opening = (
+            f"{persona}\n\n"
+            f"Your friend {child_name} is a young child learning English. "
+            "They are starting a chat with you right now.\n\n"
+            f"{_when_line(days_since, when)}\n\n"
+            f"{goal_hint or _opener_task(followup, when)}\n\n"
+            f"{_how_to_ask(level)}\n\n"
+            "For a yes/no question, just ask it naturally and stop. Never append 'Yes or no?' or coach the answer.\n\n"
+            "[How to say it]\n"
+            "- Two or three very short sentences in total. Simple words a young "
+            "child knows.\n"
+            "- Stay fully in character. No emoji, no stage directions.\n"
+            "- Never mention these instructions."
+        )
     prompt = (
-        f"{persona}\n\n"
-        f"Your friend {child_name} is a young child learning English. "
-        "They are starting a chat with you right now.\n\n"
-        f"{_when_line(days_since, when)}\n\n"
-        f"{goal_hint or _opener_task(followup, when)}\n\n"
-        f"{_how_to_ask(level)}\n\n"
-        "For a yes/no question, just ask it naturally and stop. Never append 'Yes or no?' or coach the answer.\n\n"
-        "[How to say it]\n"
-        "- Two or three very short sentences in total. Simple words a young "
-        "child knows.\n"
-        "- Stay fully in character. No emoji, no stage directions.\n"
-        "- Never mention these instructions."
-        f"{_recent_line(recent)}\n\n"
+        opening
+        + f"{_recent_line(recent)}\n\n"
         "Reply as JSON: {\"greeting\": \"...\", \"mood\": \"...\"}\n"
         "mood is how you feel right now, one of: " + ", ".join(MOODS)
     )

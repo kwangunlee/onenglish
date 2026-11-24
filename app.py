@@ -11,6 +11,7 @@ OnEnglish — 어린이 일상 영어 대화 친구.
 얹을 수 있습니다.
 """
 
+import base64
 import hashlib
 import os
 import sys
@@ -271,31 +272,38 @@ def password_gate() -> bool:
 def screen_profiles() -> None:
     st.button("관리자 페이지", icon=":material/settings:", type="tertiary",
               on_click=st.session_state.update, args=({"screen": "admin"},))
+    profiles = store.list_profiles()
+    guide = "내 이름을 선택해 주세요." if profiles else "첫 대화를 시작할 이름을 등록해 주세요."
+    logo = base64.b64encode((config.ASSETS_DIR / "onenglish-bulb.webp").read_bytes()).decode("ascii")
     st.markdown("""
     <style>
     .oe-welcome {
         position: relative; overflow: hidden; border-radius: 20px;
-        background: #edf5f1; color: #193d35; padding: clamp(20px, 4vw, 32px);
+        display: flex; align-items: center; gap: clamp(12px, 3vw, 24px);
+        background: #fff7e7; color: #382b20; padding: clamp(16px, 4vw, 32px);
         margin-bottom: 8px;
     }
     .oe-welcome::after {
         content: ""; position: absolute; right: -60px; top: -75px;
-        width: 180px; height: 180px; border: 20px solid #dcebe4;
+        width: 180px; height: 180px; border: 20px solid #ffedc4;
         border-radius: 50%; pointer-events: none;
     }
-    .oe-welcome h1, .oe-welcome p { position: relative; z-index: 1; }
-    .oe-welcome h1 { color: inherit; font-size: 2rem; padding: 0 0 6px; }
-    .oe-welcome p { color: #38594f; margin: 0; }
+    .oe-welcome > * { position: relative; z-index: 1; }
+    .oe-welcome img { width: clamp(54px, 12vw, 90px); height: auto;
+        padding: 6px; background: white; border-radius: 22%; flex: none; }
+    .oe-welcome strong { color: #a52a58; font-size: .9rem; }
+    .oe-welcome h1 { color: inherit; font-size: clamp(1.35rem, 4vw, 2rem); padding: 3px 0; }
+    .oe-welcome p { color: #604e3f; margin: 0; }
     .st-key-profile_grid button {
-        min-height: 68px; border-radius: 14px; border-inline-start: 4px solid #88b2a3;
+        min-height: 68px; border-radius: 14px; border-inline-start: 4px solid #eeb954;
     }
     </style>
-    <header class="oe-welcome"><h1>누구세요?</h1>
-    <p>이름을 고르면 지난 이야기를 이어서 할 수 있어요.</p></header>
+    <header class="oe-welcome">
+    """ + f'<img src="data:image/webp;base64,{logo}" alt="">' + """
+    <div><strong>온잉글리쉬</strong><h1>오늘의 영어 대화</h1>
+    <p>""" + guide + """</p></div></header>
     """, unsafe_allow_html=True)
     show_flash()
-
-    profiles = store.list_profiles()
 
     if profiles:
         columns = st.container(key="profile_grid").columns(2)
@@ -311,12 +319,10 @@ def screen_profiles() -> None:
                         st.session_state.unlock_profile = profile
                         go("unlock")
                     enter_profile(profile)
-    else:
-        st.info("아직 등록된 사람이 없어요. 아래에서 이름을 추가해 주세요.")
 
     st.divider()
 
-    with st.expander("새로운 사람 추가하기", expanded=not profiles):
+    with st.expander("새 프로필 만들기", expanded=not profiles):
         with st.form("new_profile", clear_on_submit=True):
             name = st.text_input("이름", placeholder="예: 민준")
             password = st.text_input(

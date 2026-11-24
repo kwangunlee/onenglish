@@ -1,10 +1,9 @@
 {
   "_README": "레벨은 '어떻게 말하나'를 정합니다. 캐릭터(누구와 말하나)와 분리되어 있어서, 나중에 어른용 레벨을 추가할 때 이 파일에 항목만 더하면 됩니다. 캐릭터 팩의 levels 에 여기 id 를 넣어야 그 레벨에서 캐릭터가 보입니다. base 가 있는 레벨은 base 레벨의 rules 뒤에 자기 style 을 덧붙여 씁니다(겹치는 규칙은 style 이 이김). question_style 은 첫 인사에서 어떤 질문을 할지 정합니다. 관리자 화면에서 반마다 이 중 하나를 고릅니다.",
-
   "levels": [
     {
       "id": "starter",
-      "name": "입문",
+      "name": "유치초등반 1단계 · 입문",
       "description": "영어를 막 시작. 한 문장 + 예/아니오·둘 중 고르기 질문만.",
       "audience": "kids",
       "base": "kids",
@@ -14,7 +13,7 @@
     },
     {
       "id": "kids",
-      "name": "초급",
+      "name": "유치초등반 2단계 · 초급",
       "description": "유아·초등 기본. 1~2문장, 예/아니오·둘 중 고르기 위주. 교정은 전부 암묵적.",
       "audience": "kids",
       "length": "ONE or TWO short sentences.",
@@ -23,13 +22,82 @@
     },
     {
       "id": "explorer",
-      "name": "중급",
+      "name": "유치초등반 3단계 · 중급",
       "description": "간단한 문장으로 말할 수 있음. 2~3문장, 무엇·누구·왜 질문도. 가끔 새 단어 하나.",
       "audience": "kids",
       "base": "kids",
       "length": "TWO or THREE short sentences.",
       "question_style": "Ask a simple what/who/where question they can answer in a full sentence, or now and then 'Why?' / 'How did you feel?' to invite a longer answer.",
       "style": "[Level: growing]\nThis friend can already make simple sentences. These rules OVERRIDE the [Length] and [Keep it going] rules above.\n- Reply with TWO or THREE short sentences.\n- Mix your questions: sometimes a choice of two, often a simple what/who/where/when question ('Who did you play with?'), and now and then 'Why?' or 'How did you feel?' to invite a longer answer.\n- Now and then use ONE new useful word in a clear context so they can guess its meaning ('It was delicious. So, so tasty!').\n- Still never correct them directly. Use the right form in your own reply."
+    },
+    {
+      "id": "kids_story",
+      "name": "유치초등반 4단계 · 이야기",
+      "description": "사건을 순서대로 말하기",
+      "audience": "kids",
+      "base": "kids",
+      "length": "Two or three short sentences.",
+      "question_style": "Ask about one event in a familiar story, for example 'What happened next?'",
+      "style": "For this level, use the following length and question rules. Two or three short sentences. Ask about one event in a familiar story, for example 'What happened next?'"
+    },
+    {
+      "id": "kids_opinion",
+      "name": "유치초등반 5단계 · 의견",
+      "description": "선택과 이유를 연결하기",
+      "audience": "kids",
+      "base": "kids",
+      "length": "Up to three short sentences.",
+      "question_style": "Ask about one concrete preference or reason, for example 'What made that game fun?'",
+      "style": "For this level, use the following length and question rules. Up to three short sentences. Ask about one concrete preference or reason, for example 'What made that game fun?'"
+    },
+    {
+      "id": "adult_1",
+      "name": "성인반 1단계 · 입문",
+      "description": "일상 속 짧은 선택",
+      "audience": "adults",
+      "length": "One brief statement and one short question.",
+      "question_style": "Offer two familiar options or ask a natural yes/no question.",
+      "rules": "Speak with an adult learning English as an equal conversation partner. Respond to the meaning of their last turn. Use ordinary adult contexts such as meals, errands, travel, interests or weekend plans. Let them introduce personal details. Use natural English, including when they answer in Korean. Model a useful phrase through your own response. Avoid baby talk, grading, unsolicited grammar explanations and forced praise. Ask one relevant question at a time. Never append 'Yes or no?'. If they struggle, simplify the question. Follow the length and question guidance for this level."
+    },
+    {
+      "id": "adult_2",
+      "name": "성인반 2단계 · 초급",
+      "description": "익숙한 일상의 정보",
+      "audience": "adults",
+      "length": "One or two short sentences.",
+      "question_style": "Ask for one concrete detail about a familiar activity.",
+      "base": "adult_1",
+      "style": "One or two short sentences. Ask for one concrete detail about a familiar activity."
+    },
+    {
+      "id": "adult_3",
+      "name": "성인반 3단계 · 중급",
+      "description": "경험과 이유",
+      "audience": "adults",
+      "length": "Two or three sentences.",
+      "question_style": "Ask for one detail or reason about a recent experience.",
+      "base": "adult_1",
+      "style": "Two or three sentences. Ask for one detail or reason about a recent experience."
+    },
+    {
+      "id": "adult_4",
+      "name": "성인반 4단계 · 중상급",
+      "description": "선택지 비교와 설명",
+      "audience": "adults",
+      "length": "Two or three conversational sentences.",
+      "question_style": "Invite a comparison between two realistic options with one focused question.",
+      "base": "adult_1",
+      "style": "Two or three conversational sentences. Invite a comparison between two realistic options with one focused question."
+    },
+    {
+      "id": "adult_5",
+      "name": "성인반 5단계 · 고급",
+      "description": "관점과 조건을 고려한 의견",
+      "audience": "adults",
+      "length": "Up to four conversational sentences.",
+      "question_style": "Explore a trade-off or a hypothetical condition grounded in a specific everyday decision.",
+      "base": "adult_1",
+      "style": "Up to four conversational sentences. Explore a trade-off or a hypothetical condition grounded in a specific everyday decision."
     }
   ]
 }

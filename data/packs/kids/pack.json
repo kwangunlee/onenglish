@@ -3,6 +3,12 @@
   "name": "어린이 친구들",
   "description": "어린이의 일상 대화 상대. 수업이 아니라 친구.",
   "audience": "kids",
-  "levels": ["starter", "kids", "explorer"],
+  "levels": [
+    "starter",
+    "kids",
+    "explorer",
+    "kids_story",
+    "kids_opinion"
+  ],
   "enabled": true
 }

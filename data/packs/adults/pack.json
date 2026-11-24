@@ -1,0 +1,13 @@
+{
+  "id": "adults",
+  "name": "성인 회화",
+  "audience": "adults",
+  "levels": [
+    "adult_1",
+    "adult_2",
+    "adult_3",
+    "adult_4",
+    "adult_5"
+  ],
+  "enabled": true
+}
