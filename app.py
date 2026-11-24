@@ -452,8 +452,11 @@ def start_chat(character_id: str) -> None:
     # 이번에 물어볼 만한 이야깃거리가 있는지 (없으면 그냥 반갑게 인사).
     # 목표가 있으면 목표 주제로 시작하므로, 지난 이야기는 다음 기회로 남겨둡니다.
     followup, memory_id = (None, None) if goal else memory.opener_followup(profile["id"])
-    if not llm.suitable_followup(level, followup):
-        followup, memory_id = None, None
+    if followup and level.get("audience") == "adults":
+        # During a Streamlit update the running worker can retain an older core module.
+        accepts_topic = getattr(llm, "suitable_followup", None)
+        if accepts_topic is None or not accepts_topic(level, followup):
+            followup, memory_id = None, None
     days_since = store.days_since_last_chat(profile["id"])
 
     # 이 캐릭터가 최근에 했던 첫 마디들. 같은 인사를 되풀이하지 않게 넘깁니다.
