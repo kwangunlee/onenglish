@@ -49,25 +49,58 @@ def no_exception(at: AppTest, label: str) -> None:
     check(label, not at.exception, detail)
 
 
+def find_button(at: AppTest, text: str):
+    """라벨에 text 가 들어가는 버튼. 없으면 None.
+
+    버튼을 at.button[0] 처럼 순서로 집으면 화면에 버튼 하나만 늘어도 테스트가
+    엉뚱한 것을 누릅니다(실제로 '관리자 페이지' 버튼이 생기면서 그랬습니다).
+    그래서 항상 라벨로 찾습니다."""
+    return next((b for b in at.button if text in b.label), None)
+
+
+def click(at: AppTest, text: str, label: str | None = None) -> bool:
+    """라벨로 버튼을 찾아 누릅니다. 못 찾으면 FAIL 로 남기고 False."""
+    button = find_button(at, text)
+    check(label or f"'{text}' 버튼 있음", button is not None,
+          "있는 버튼: " + ", ".join(repr(b.label) for b in at.button))
+    if button is None:
+        return False
+    button.click().run()
+    return True
+
+
+def field(at: AppTest, text: str):
+    """라벨에 text 가 들어가는 입력칸."""
+    return next((t for t in at.text_input if text in t.label), None)
+
+
 def main() -> int:
     print("\n[1] 첫 화면 (프로필)")
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     no_exception(at, "오류 없이 렌더링")
-    body = " ".join(m.value for m in at.markdown)
-    check("제목이 보임", "누구세요" in body)
+    # 화면 문구는 자주 바뀌므로, 문구 대신 "할 수 있는 일"이 있는지 봅니다.
+    check("이름 입력칸 있음", field(at, "이름") is not None)
+    check("비밀번호 입력칸 있음", field(at, "비밀번호") is not None)
+    check("관리자 페이지로 가는 길 있음", find_button(at, "관리자") is not None)
 
     print("\n[2] 프로필 생성 (이름 + 비밀번호)")
-    at.text_input[0].set_value("민준")
-    at.text_input[1].set_value("1234")
-    at.button[0].click().run()
-    no_exception(at, "오류 없이 생성")
-    check("캐릭터 화면으로 이동", at.session_state["screen"] == "characters")
-    check("프로필이 세션에 저장됨",
-          (at.session_state["profile"] or {}).get("name") == "민준")
+    field(at, "이름").set_value("민준")
+    field(at, "비밀번호").set_value("1234")
+    if click(at, "추가하기", "추가하기 눌림"):
+        no_exception(at, "오류 없이 생성")
+        check("캐릭터 화면으로 이동", at.session_state["screen"] == "characters")
+        check("프로필이 세션에 저장됨",
+              (at.session_state["profile"] or {}).get("name") == "민준")
 
     print("\n[3] 캐릭터 화면")
+    # 캐릭터 이름은 data/packs/ 에서 읽어, 팩을 바꿔도 테스트가 따라가게 합니다.
+    from core import packs, store
+    profile = at.session_state["profile"]
+    level = store.effective_level(profile) if profile else "kids"
+    expected = [c["name"] for c in packs.characters_for_level(level)]
+    check("캐릭터가 하나 이상 있음", bool(expected), str(expected))
     body = " ".join(m.value for m in at.markdown)
-    for name in ("Luna", "Rocky", "Zoom", "Mochi"):
+    for name in expected:
         check(f"{name} 카드 표시", name in body)
 
     print("\n[4] 대화 시작")
@@ -89,7 +122,6 @@ def main() -> int:
         check("타이핑 입력 존재", len(at.chat_input) > 0)
 
     print("\n[5] DB 에 기록되었는지")
-    from core import store
     profiles = store.list_profiles()
     check("프로필 1개", len(profiles) == 1, str(profiles))
     if profiles:
@@ -110,21 +142,22 @@ def main() -> int:
     at.session_state["profile"] = None
     at.session_state["screen"] = "profiles"
     at.run()
-    card = next((b.label for b in at.button if "민준" in b.label), "")
-    check("카드에 이름만 표시", "민준" in card and "대화" not in card and "기억" not in card)
-    check("잠금 표시", "비밀번호 필요" in card)
-    for b in at.button:
-        if "민준" in b.label:
-            b.click().run()
-            break
-    check("비밀번호 화면으로 감", at.session_state["screen"] == "unlock")
-    check("아직 입장 안 됨", at.session_state["profile"] is None)
-    at.text_input[0].set_value("0000")
-    at.button[0].click().run()
-    check("틀린 비밀번호 거부", at.session_state["profile"] is None)
-    at.text_input[0].set_value("1234")
-    at.button[0].click().run()
-    check("맞는 비밀번호로 입장", at.session_state["screen"] == "characters")
+    card = (find_button(at, "민준") or type("x", (), {"label": ""})).label
+    check("카드에 이름만 표시",
+          "민준" in card and "대화" not in card and "기억" not in card, repr(card))
+    check("잠금 표시", "비밀번호 필요" in card, repr(card))
+    if click(at, "민준", "카드 눌림"):
+        check("비밀번호 화면으로 감", at.session_state["screen"] == "unlock")
+        check("아직 입장 안 됨", at.session_state["profile"] is None)
+        box = field(at, "비밀번호")
+        check("비밀번호 칸 있음", box is not None)
+        if box is not None:
+            box.set_value("0000")
+            click(at, "들어가기", "틀린 비밀번호 제출")
+            check("틀린 비밀번호 거부", at.session_state["profile"] is None)
+            field(at, "비밀번호").set_value("1234")
+            click(at, "들어가기", "맞는 비밀번호 제출")
+            check("맞는 비밀번호로 입장", at.session_state["screen"] == "characters")
 
     print("\n[7] 앱 비밀번호 게이트")
     os.environ["APP_PASSWORD"] = "1234"
@@ -135,6 +168,35 @@ def main() -> int:
     at2.button[0].click().run()
     check("올바른 비밀번호로 통과", at2.session_state["authed"])
     os.environ["APP_PASSWORD"] = ""
+
+    print("\n[7-2] 관리자 화면은 비밀번호 없이 열리지 않는다")
+    # 모든 아이의 대화가 보이는 화면이라, 비밀번호가 없으면 아예 닫혀야 합니다.
+    os.environ.pop("ADMIN_PASSWORD", None)
+    os.environ.pop("PARENT_PASSWORD", None)
+    at4 = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    at4.session_state["screen"] = "admin"
+    at4.run()
+    no_exception(at4, "오류 없이 렌더링")
+    check("비밀번호 미설정이면 닫힘", not at4.session_state.get("admin_ok")
+          and len(at4.error) > 0)
+
+    os.environ["ADMIN_PASSWORD"] = "admin1234"
+    at5 = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    at5.session_state["screen"] = "admin"
+    at5.run()
+    no_exception(at5, "비밀번호 설정 후 렌더링")
+    check("아직 안 열림", not at5.session_state.get("admin_ok"))
+    box = field(at5, "관리자 비밀번호")
+    check("관리자 비밀번호 칸 있음", box is not None)
+    if box is not None:
+        box.set_value("틀린값")
+        click(at5, "들어가기", "틀린 비밀번호 제출")
+        check("틀린 비밀번호 거부", not at5.session_state.get("admin_ok"))
+        field(at5, "관리자 비밀번호").set_value("admin1234")
+        click(at5, "들어가기", "맞는 비밀번호 제출")
+        check("맞는 비밀번호로 열림", bool(at5.session_state.get("admin_ok")))
+        no_exception(at5, "관리자 화면 오류 없음")
+    os.environ.pop("ADMIN_PASSWORD", None)
 
     print("\n[8] 키 미설정 안내")
     os.environ["OPENAI_API_KEY"] = "sk-여기에_붙여넣기"
