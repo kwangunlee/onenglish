@@ -266,6 +266,27 @@ def delete_profile(profile_id: int) -> None:
     client().recursive_delete(ref)
 
 
+def save_trail_result(profile_id: int, result: dict) -> None:
+    from google.cloud import firestore
+
+    profile = _profile_ref(profile_id)
+    ref = profile.collection("trail_results").document(result["id"])
+
+    @firestore.transactional
+    def save(transaction):
+        if not profile.get(transaction=transaction).exists:
+            raise ValueError("학생 프로필을 찾을 수 없어요.")
+        if not ref.get(transaction=transaction).exists:
+            transaction.create(ref, {**result, "created_at": _store().now()})
+
+    save(client().transaction())
+
+
+def trail_results(profile_id: int) -> list[dict]:
+    query = _profile_ref(profile_id).collection("trail_results").order_by("created_at", direction=_desc())
+    return [doc.to_dict() for doc in query.stream()]
+
+
 def update_profile(profile_id: int, name: str | None = None,
                    level: str | None = None) -> dict:
     """(관리자) 이름이나 레벨을 바꿉니다. 이름을 바꿀 때는 '이름 표'도 같이

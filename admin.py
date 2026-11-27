@@ -108,8 +108,8 @@ def gate() -> bool:
 def sidebar(profiles: list[dict]) -> int | None:
     with st.sidebar:
         st.markdown("### 학생")
-        labels = ["📋 전체 현황", "🏫 반 관리", "🎯 학습 목표"] + [p["name"] for p in profiles]
-        ids = [None, "classes", "goals"] + [p["id"] for p in profiles]
+        labels = ["📋 전체 현황", "🏫 반 관리", "🎯 학습 목표", "Word Trails 점수판"] + [p["name"] for p in profiles]
+        ids = [None, "classes", "goals", "trails"] + [p["id"] for p in profiles]
         current = st.session_state.get("admin_selected")
         index = ids.index(current) if current in ids else 0
         choice = st.radio("학생", labels, index=index, label_visibility="collapsed")
@@ -206,7 +206,7 @@ def student(profile: dict, classes: list[dict], profiles: list[dict]) -> None:
     show_flash()
 
     tabs = st.tabs(["💬 대화 기록", "🎯 학습 목표", "🧠 기억", "📝 학습 기록",
-                    "✏️ 학생 정보", "🔑 비밀번호", "🗑️ 학생 삭제"])
+                    "✏️ 학생 정보", "🔑 비밀번호", "🗑️ 학생 삭제", "Word Trails"])
     with tabs[0]:
         conversations(profile)
     with tabs[1]:
@@ -221,6 +221,9 @@ def student(profile: dict, classes: list[dict], profiles: list[dict]) -> None:
         reset_password(profile)
     with tabs[6]:
         delete_student(profile)
+    with tabs[7]:
+        from trail_ui import history
+        history(store.trail_results(pid))
 
 
 def conversations(profile: dict) -> None:
@@ -629,6 +632,10 @@ def main() -> None:
         st.error(f"저장소에 연결하지 못했어요: {type(e).__name__}: {e}")
         return
     selected = sidebar(profiles)
+    if selected == "trails":
+        from trail_ui import leaderboard
+        leaderboard(profiles, classes)
+        return
     if selected == "classes":
         classes_page(profiles, classes)
         return

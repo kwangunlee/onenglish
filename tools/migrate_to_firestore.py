@@ -208,6 +208,12 @@ def main() -> int:
             "note": r.get("note"), "updated_at": r["updated_at"],
         })
 
+    for r in data["trail_results"]:
+        ref = fs._profile_ref(r["profile_id"]).collection("trail_results").document(r["id"])
+        writer.set(ref, {"id": r["id"], "course": r["course"], "score": r["score"],
+                         "words": _list(r["words"]), "review": _list(r["review"]),
+                         "created_at": r["created_at"]})
+
     writer.set(db.collection("meta").document("counters"),
                {"next_profile_id": max_pid + 1, "next_class_id": max_cid + 1,
                 "next_goal_id": max_gid + 1}, merge=True)
@@ -223,6 +229,8 @@ def main() -> int:
     # 확인
     print("\n  확인:")
     counts = {
+        "trail_results": sum(fs._count(fs._profile_ref(p["id"]).collection("trail_results"))
+                             for p in data["profiles"]),
         "classes": fs._count(db.collection("classes")),
         "profiles": fs._count(db.collection("profiles")),
         "sessions": sum(fs._count(fs._sessions(p["id"])) for p in data["profiles"]),

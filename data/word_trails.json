@@ -1,0 +1,1052 @@
+[
+  {
+    "ko": "숲길",
+    "title": "Forest Trail",
+    "mood": "초록 숲에서 만나는 생물",
+    "size": 7,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "guide": "오른쪽과 아래쪽으로 숨어 있어요.",
+    "sky": "#e1eac6",
+    "ink": "#203e2f",
+    "entries": [
+      [
+        "LEAF",
+        "잎",
+        "A green ___ falls from the tree.",
+        "나무에서 초록 잎 하나가 떨어져요."
+      ],
+      [
+        "FOX",
+        "여우",
+        "A red ___ has a bushy tail.",
+        "붉은 여우는 꼬리가 복슬복슬해요."
+      ],
+      [
+        "TREE",
+        "나무",
+        "A tall ___ gives us shade.",
+        "키 큰 나무가 그늘을 만들어 줘요."
+      ],
+      [
+        "BIRD",
+        "새",
+        "A little ___ sings in the tree.",
+        "작은 새 한 마리가 나무에서 노래해요."
+      ],
+      [
+        "FROG",
+        "개구리",
+        "The ___ jumps into the pond.",
+        "개구리가 연못으로 뛰어들어요."
+      ],
+      [
+        "BRANCH",
+        "나뭇가지",
+        "The owl sits on a ___.",
+        "올빼미가 나뭇가지에 앉아 있어요."
+      ],
+      [
+        "BEAR",
+        "곰",
+        "A brown ___ catches a fish.",
+        "갈색 곰이 물고기를 잡아요."
+      ],
+      [
+        "ANT",
+        "개미",
+        "A tiny ___ carries a crumb.",
+        "작은 개미가 빵 부스러기를 날라요."
+      ],
+      [
+        "RABBIT",
+        "토끼",
+        "A ___ with long ears hops past.",
+        "귀가 긴 토끼 한 마리가 깡충깡충 지나가요."
+      ],
+      [
+        "GRASS",
+        "풀",
+        "We sit on the soft ___.",
+        "우리는 부드러운 풀 위에 앉아요."
+      ],
+      [
+        "WOOD",
+        "나무토막",
+        "The camper gathers dry ___ for a fire.",
+        "야영객이 불을 피우려고 마른 나무토막을 모아요."
+      ],
+      [
+        "ROCK",
+        "바위",
+        "A lizard rests on a warm ___.",
+        "도마뱀이 따뜻한 바위 위에서 쉬어요."
+      ]
+    ]
+  },
+  {
+    "ko": "바닷길",
+    "title": "Coastal Walk",
+    "mood": "파도를 따라 만나는 바닷가",
+    "size": 8,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        -1,
+        1
+      ]
+    ],
+    "guide": "가로, 세로, 대각선으로 찾아보세요.",
+    "sky": "#f8e4ba",
+    "ink": "#4d4029",
+    "entries": [
+      [
+        "SAND",
+        "모래",
+        "My feet sink into the soft ___.",
+        "부드러운 모래 속으로 발이 푹 들어가요."
+      ],
+      [
+        "BOAT",
+        "배",
+        "We row a little ___ to the island.",
+        "우리는 작은 배를 저어 섬으로 가요."
+      ],
+      [
+        "FISH",
+        "물고기",
+        "A silver ___ swims under the boat.",
+        "은빛 물고기가 배 아래에서 헤엄쳐요."
+      ],
+      [
+        "OCEAN",
+        "대양",
+        "The Pacific is the largest ___.",
+        "태평양은 가장 큰 대양이에요."
+      ],
+      [
+        "BEACH",
+        "해변",
+        "We build sandcastles at the ___.",
+        "우리는 해변에서 모래성을 쌓아요."
+      ],
+      [
+        "DOLPHIN",
+        "돌고래",
+        "A ___ leaps out of the water.",
+        "돌고래가 물 밖으로 뛰어올라요."
+      ],
+      [
+        "SWIM",
+        "헤엄치다",
+        "We ___ near the shore.",
+        "우리는 물가 가까이에서 헤엄쳐요."
+      ],
+      [
+        "SALT",
+        "소금",
+        "Sea water leaves ___ on the rocks.",
+        "바닷물이 바위 위에 소금을 남겨요."
+      ],
+      [
+        "SHIP",
+        "선박",
+        "A huge ___ carries cars across the sea.",
+        "커다란 선박이 자동차를 싣고 바다를 건너요."
+      ],
+      [
+        "DEEP",
+        "깊은",
+        "The water is too ___ to stand in.",
+        "물이 너무 깊어서 발을 딛고 설 수 없어요."
+      ],
+      [
+        "BLUE",
+        "파란색의",
+        "The little boat has a ___ sail.",
+        "작은 배에 파란색 돛이 달려 있어요."
+      ],
+      [
+        "CAPTAIN",
+        "선장",
+        "The ___ steers the ship into port.",
+        "선장이 배를 몰고 항구로 들어가요."
+      ]
+    ]
+  },
+  {
+    "ko": "별빛길",
+    "title": "Starlight Ridge",
+    "mood": "밤하늘을 올려다보는 언덕",
+    "size": 9,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        -1,
+        1
+      ],
+      [
+        0,
+        -1
+      ],
+      [
+        -1,
+        0
+      ],
+      [
+        -1,
+        -1
+      ],
+      [
+        1,
+        -1
+      ]
+    ],
+    "guide": "대각선과 거꾸로 숨은 단어도 있어요.",
+    "sky": "#283755",
+    "ink": "#fff1cd",
+    "entries": [
+      [
+        "MOON",
+        "달",
+        "The ___ goes around Earth.",
+        "달은 지구 주위를 돌아요."
+      ],
+      [
+        "EARTH",
+        "지구",
+        "We live on a planet called ___.",
+        "우리는 지구라는 행성에 살아요."
+      ],
+      [
+        "NIGHT",
+        "밤",
+        "Owls hunt at ___.",
+        "올빼미는 밤에 사냥해요."
+      ],
+      [
+        "SPACE",
+        "우주",
+        "Astronauts travel into ___.",
+        "우주 비행사들은 우주로 떠나요."
+      ],
+      [
+        "SKY",
+        "하늘",
+        "Clouds float across the ___.",
+        "구름이 하늘을 가로질러 떠다녀요."
+      ],
+      [
+        "SUN",
+        "태양",
+        "The ___ gives us light and heat.",
+        "태양은 우리에게 빛과 열을 줘요."
+      ],
+      [
+        "CLOUD",
+        "구름",
+        "A white ___ covers the moon.",
+        "흰 구름이 달을 가려요."
+      ],
+      [
+        "DARK",
+        "어두운",
+        "The sky grows ___ after sunset.",
+        "해가 지면 하늘이 어두워져요."
+      ],
+      [
+        "LIGHT",
+        "빛",
+        "The moon reflects ___ from the sun.",
+        "달은 태양에서 오는 빛을 반사해요."
+      ],
+      [
+        "EAST",
+        "동쪽",
+        "We look ___ to see the sunrise.",
+        "우리는 해가 뜨는 것을 보려고 동쪽을 바라봐요."
+      ],
+      [
+        "BRIGHT",
+        "밝은",
+        "One star is so ___ that I can see it from my window.",
+        "별 하나가 아주 밝아서 창문으로도 보여요."
+      ],
+      [
+        "EVENING",
+        "저녁",
+        "We watch the sunset in the ___.",
+        "우리는 저녁에 노을을 바라봐요."
+      ]
+    ]
+  },
+  {
+    "ko": "농장길",
+    "title": "Barnyard Lane",
+    "mood": "빨간 헛간에서 보내는 아침",
+    "size": 8,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "guide": "오른쪽과 아래쪽으로 숨어 있어요.",
+    "sky": "#f4e3c0",
+    "ink": "#493b2c",
+    "entries": [
+      [
+        "FARM",
+        "농장",
+        "My aunt grows corn on her ___.",
+        "이모는 농장에서 옥수수를 길러요."
+      ],
+      [
+        "COW",
+        "소",
+        "The ___ gives us milk.",
+        "소는 우리에게 우유를 줘요."
+      ],
+      [
+        "PIG",
+        "돼지",
+        "A pink ___ rolls in the mud.",
+        "분홍 돼지가 진흙 속에서 뒹굴어요."
+      ],
+      [
+        "HORSE",
+        "말",
+        "The ___ carries a rider across the field.",
+        "말이 사람을 태우고 들판을 가로질러요."
+      ],
+      [
+        "DUCK",
+        "오리",
+        "A ___ paddles across the pond.",
+        "오리가 발을 저어 연못을 건너요."
+      ],
+      [
+        "EGG",
+        "알",
+        "The hen lays an ___ in the straw.",
+        "암탉이 짚 위에 알을 낳아요."
+      ],
+      [
+        "MILK",
+        "우유",
+        "We pour fresh ___ into a glass.",
+        "우리는 신선한 우유를 컵에 따라요."
+      ],
+      [
+        "FIELD",
+        "밭",
+        "Rows of corn grow in the ___.",
+        "밭에 옥수수가 줄지어 자라요."
+      ],
+      [
+        "GATE",
+        "대문",
+        "Please shut the ___ so the cows stay inside.",
+        "소들이 안에 있도록 대문을 닫아 주세요."
+      ],
+      [
+        "MOUSE",
+        "생쥐",
+        "A little ___ hides behind a sack of grain.",
+        "작은 생쥐가 곡식 자루 뒤에 숨어요."
+      ],
+      [
+        "TAIL",
+        "꼬리",
+        "The horse flicks its ___ at a fly.",
+        "말이 파리를 쫓으려고 꼬리를 휙 움직여요."
+      ],
+      [
+        "ANIMAL",
+        "동물",
+        "Each ___ on the farm needs water.",
+        "농장의 동물은 저마다 물이 필요해요."
+      ]
+    ]
+  },
+  {
+    "ko": "정원길",
+    "title": "Garden Path",
+    "mood": "온실을 지나 꽃과 곤충 만나기",
+    "size": 8,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "guide": "오른쪽과 아래쪽으로 숨어 있어요.",
+    "sky": "#eee2d7",
+    "ink": "#453b35",
+    "entries": [
+      [
+        "GARDEN",
+        "정원",
+        "We plant roses in our ___.",
+        "우리는 정원에 장미를 심어요."
+      ],
+      [
+        "FLOWER",
+        "꽃",
+        "A yellow ___ opens in the sun.",
+        "노란 꽃이 햇빛 속에서 피어나요."
+      ],
+      [
+        "BEE",
+        "벌",
+        "A ___ buzzes beside my ear.",
+        "벌 한 마리가 내 귀 옆에서 윙윙거려요."
+      ],
+      [
+        "BUG",
+        "벌레",
+        "A tiny green ___ crawls up the stem.",
+        "작은 초록 벌레가 줄기를 기어올라요."
+      ],
+      [
+        "WATER",
+        "물",
+        "The roots take in ___ from the soil.",
+        "뿌리는 흙에서 물을 흡수해요."
+      ],
+      [
+        "RAIN",
+        "비",
+        "The ___ leaves drops on the petals.",
+        "비가 꽃잎에 물방울을 남겨요."
+      ],
+      [
+        "GROW",
+        "자라다",
+        "These beans ___ taller every day.",
+        "이 콩들은 날마다 키가 더 자라요."
+      ],
+      [
+        "GREEN",
+        "초록색의",
+        "The new leaves are bright ___.",
+        "새로 난 잎은 밝은 초록색이에요."
+      ],
+      [
+        "PINK",
+        "분홍색의",
+        "She picks a ___ rose for me.",
+        "그녀는 나를 위해 분홍 장미 한 송이를 따요."
+      ],
+      [
+        "HONEY",
+        "꿀",
+        "Bees make ___ from nectar.",
+        "벌은 꽃의 단물로 꿀을 만들어요."
+      ],
+      [
+        "BEAN",
+        "콩",
+        "We plant a ___ in a small pot.",
+        "우리는 작은 화분에 콩 한 알을 심어요."
+      ],
+      [
+        "GROUND",
+        "땅",
+        "A worm slips into the soft ___.",
+        "지렁이가 부드러운 땅속으로 쏙 들어가요."
+      ]
+    ]
+  },
+  {
+    "ko": "시장길",
+    "title": "Market Lane",
+    "mood": "천막 사이에서 장바구니 채우기",
+    "size": 8,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        -1,
+        1
+      ]
+    ],
+    "guide": "가로, 세로, 대각선으로 찾아보세요.",
+    "sky": "#f6debe",
+    "ink": "#4e392c",
+    "entries": [
+      [
+        "APPLE",
+        "사과",
+        "I bite into a crunchy red ___.",
+        "나는 아삭한 빨간 사과를 한 입 베어 물어요."
+      ],
+      [
+        "PEAR",
+        "배",
+        "The ripe ___ has a narrow top and a round bottom.",
+        "잘 익은 배는 윗부분이 좁고 아랫부분이 둥글어요."
+      ],
+      [
+        "GRAPE",
+        "포도 알",
+        "I pick one purple ___ from the bunch.",
+        "나는 송이에서 보라색 포도 한 알을 떼요."
+      ],
+      [
+        "CARROT",
+        "당근",
+        "The orange ___ still has its green top.",
+        "주황색 당근에 초록 잎이 아직 달려 있어요."
+      ],
+      [
+        "POTATO",
+        "감자",
+        "I choose a ___ to bake for lunch.",
+        "나는 점심에 구워 먹을 감자를 골라요."
+      ],
+      [
+        "BREAD",
+        "빵",
+        "Warm ___ smells wonderful at the market.",
+        "시장에서 따뜻한 빵 냄새가 참 좋아요."
+      ],
+      [
+        "BASKET",
+        "바구니",
+        "My ___ is full of fruit.",
+        "내 바구니에는 과일이 가득해요."
+      ],
+      [
+        "COIN",
+        "동전",
+        "One silver ___ rolls under the stall.",
+        "은빛 동전 하나가 가판대 밑으로 굴러가요."
+      ],
+      [
+        "BUY",
+        "사다",
+        "I want to ___ some strawberries.",
+        "나는 딸기를 좀 사고 싶어요."
+      ],
+      [
+        "SELL",
+        "팔다",
+        "The farmers ___ fresh vegetables here.",
+        "농부들은 이곳에서 신선한 채소를 팔아요."
+      ],
+      [
+        "FRESH",
+        "신선한",
+        "These berries are ___ from the farm.",
+        "이 딸기들은 농장에서 갓 가져와 신선해요."
+      ],
+      [
+        "MONEY",
+        "돈",
+        "I save my ___ in a little purse.",
+        "나는 작은 지갑에 돈을 모아요."
+      ]
+    ]
+  },
+  {
+    "ko": "학교길",
+    "title": "School Walk",
+    "mood": "종이 울리면 시작되는 교실 탐험",
+    "size": 8,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        -1,
+        1
+      ]
+    ],
+    "guide": "가로, 세로, 대각선으로 찾아보세요.",
+    "sky": "#dae8de",
+    "ink": "#293f38",
+    "entries": [
+      [
+        "SCHOOL",
+        "학교",
+        "I walk to ___ with my friends.",
+        "나는 친구들과 걸어서 학교에 가요."
+      ],
+      [
+        "DESK",
+        "책상",
+        "My pencil case is on my ___.",
+        "내 필통은 책상 위에 있어요."
+      ],
+      [
+        "CHAIR",
+        "의자",
+        "I pull up a ___ to sit down.",
+        "나는 앉으려고 의자를 당겨요."
+      ],
+      [
+        "PENCIL",
+        "연필",
+        "I sharpen my ___ before class.",
+        "나는 수업 전에 연필을 깎아요."
+      ],
+      [
+        "ERASER",
+        "지우개",
+        "My ___ rubs out the wrong letter.",
+        "내 지우개로 잘못 쓴 글자를 지워요."
+      ],
+      [
+        "BOOK",
+        "책",
+        "I open my ___ to the first page.",
+        "나는 책을 펴서 첫 장을 봐요."
+      ],
+      [
+        "PAPER",
+        "종이",
+        "We fold a sheet of ___ in half.",
+        "우리는 종이 한 장을 반으로 접어요."
+      ],
+      [
+        "BELL",
+        "종",
+        "The ___ rings when class begins.",
+        "수업이 시작되면 종이 울려요."
+      ],
+      [
+        "CLASS",
+        "학급",
+        "Our ___ has twenty students.",
+        "우리 학급에는 학생이 스무 명 있어요."
+      ],
+      [
+        "WRITE",
+        "쓰다",
+        "We ___ our names on the board.",
+        "우리는 칠판에 이름을 써요."
+      ],
+      [
+        "READ",
+        "읽다",
+        "We ___ a story aloud together.",
+        "우리는 함께 이야기를 소리 내어 읽어요."
+      ],
+      [
+        "LESSON",
+        "수업",
+        "Our music ___ starts at nine.",
+        "우리 음악 수업은 아홉 시에 시작해요."
+      ]
+    ]
+  },
+  {
+    "ko": "도시길",
+    "title": "City Crossing",
+    "mood": "다리 건너 시내 한 바퀴",
+    "size": 9,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        -1,
+        1
+      ],
+      [
+        0,
+        -1
+      ],
+      [
+        -1,
+        0
+      ],
+      [
+        -1,
+        -1
+      ],
+      [
+        1,
+        -1
+      ]
+    ],
+    "guide": "대각선과 거꾸로 숨은 단어도 있어요.",
+    "sky": "#d9e6ed",
+    "ink": "#293e4b",
+    "entries": [
+      [
+        "CITY",
+        "도시",
+        "The ___ has many tall buildings.",
+        "그 도시에는 높은 건물이 많아요."
+      ],
+      [
+        "STREET",
+        "거리",
+        "Shops line both sides of the ___.",
+        "거리 양쪽에 가게가 늘어서 있어요."
+      ],
+      [
+        "BRIDGE",
+        "다리",
+        "We cross the river on a ___.",
+        "우리는 다리를 건너 강을 건너가요."
+      ],
+      [
+        "TOWER",
+        "탑",
+        "A tall clock ___ stands in the square.",
+        "광장에 높은 시계탑이 서 있어요."
+      ],
+      [
+        "SUBWAY",
+        "지하철",
+        "The ___ runs under the busy streets.",
+        "지하철은 붐비는 거리 아래로 다녀요."
+      ],
+      [
+        "TRAIN",
+        "기차",
+        "The ___ pulls into the station.",
+        "기차가 역으로 들어와요."
+      ],
+      [
+        "ROAD",
+        "도로",
+        "Cars drive along the wide ___.",
+        "자동차들이 넓은 도로를 따라 달려요."
+      ],
+      [
+        "PARK",
+        "공원",
+        "We have a picnic in the ___.",
+        "우리는 공원에서 소풍을 즐겨요."
+      ],
+      [
+        "SHOP",
+        "가게",
+        "The toy ___ opens at ten.",
+        "장난감 가게는 열 시에 문을 열어요."
+      ],
+      [
+        "BANK",
+        "은행",
+        "We go to the ___ to get some cash.",
+        "우리는 현금을 찾으러 은행에 가요."
+      ],
+      [
+        "CORNER",
+        "모퉁이",
+        "Turn left at the next ___.",
+        "다음 모퉁이에서 왼쪽으로 도세요."
+      ],
+      [
+        "MAP",
+        "지도",
+        "This ___ shows every street in town.",
+        "이 지도에는 마을의 모든 거리가 나와요."
+      ]
+    ]
+  },
+  {
+    "ko": "눈꽃길",
+    "title": "Snowy Summit",
+    "mood": "눈 덮인 산장에서 겨울 탐험",
+    "size": 9,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        -1,
+        1
+      ],
+      [
+        0,
+        -1
+      ],
+      [
+        -1,
+        0
+      ],
+      [
+        -1,
+        -1
+      ],
+      [
+        1,
+        -1
+      ]
+    ],
+    "guide": "대각선과 거꾸로 숨은 단어도 있어요.",
+    "sky": "#dfebf2",
+    "ink": "#314350",
+    "entries": [
+      [
+        "SNOW",
+        "눈",
+        "Fresh ___ covers the mountain path.",
+        "갓 내린 눈이 산길을 덮어요."
+      ],
+      [
+        "ICE",
+        "얼음",
+        "A thin sheet of ___ covers the puddle.",
+        "얇은 얼음이 웅덩이를 덮고 있어요."
+      ],
+      [
+        "COLD",
+        "추운",
+        "It is too ___ to go out without a coat.",
+        "외투 없이 밖에 나가기엔 너무 추워요."
+      ],
+      [
+        "WIND",
+        "바람",
+        "The ___ blows snow off the roof.",
+        "바람이 지붕 위의 눈을 날려요."
+      ],
+      [
+        "WHITE",
+        "흰색의",
+        "The trees turn ___ after the snowfall.",
+        "눈이 내린 뒤 나무들이 하얗게 변해요."
+      ],
+      [
+        "BOOT",
+        "부츠 한 짝",
+        "My left ___ leaves a print in the snow.",
+        "왼쪽 부츠가 눈에 자국을 남겨요."
+      ],
+      [
+        "GLOVE",
+        "장갑 한 짝",
+        "I pull a wool ___ onto my right hand.",
+        "나는 오른손에 털장갑을 껴요."
+      ],
+      [
+        "HAT",
+        "모자",
+        "My wool ___ keeps my head warm.",
+        "털모자가 내 머리를 따뜻하게 해 줘요."
+      ],
+      [
+        "WARM",
+        "따뜻한",
+        "We keep ___ by the fire.",
+        "우리는 불 곁에서 따뜻하게 지내요."
+      ],
+      [
+        "HILL",
+        "언덕",
+        "We slide down the snowy ___.",
+        "우리는 눈 덮인 언덕을 미끄러져 내려가요."
+      ],
+      [
+        "MOUNTAIN",
+        "산",
+        "We can see a snowy ___ in the distance.",
+        "저 멀리 눈 덮인 산이 보여요."
+      ],
+      [
+        "CLIMB",
+        "오르다",
+        "We ___ the slope in a single line.",
+        "우리는 한 줄로 비탈을 올라가요."
+      ]
+    ]
+  },
+  {
+    "ko": "성곽길",
+    "title": "Castle Quest",
+    "mood": "돌담을 따라 왕궁으로 떠나는 모험",
+    "size": 9,
+    "directions": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        -1,
+        1
+      ],
+      [
+        0,
+        -1
+      ],
+      [
+        -1,
+        0
+      ],
+      [
+        -1,
+        -1
+      ],
+      [
+        1,
+        -1
+      ]
+    ],
+    "guide": "대각선과 거꾸로 숨은 단어도 있어요.",
+    "sky": "#e5deee",
+    "ink": "#43384c",
+    "entries": [
+      [
+        "CASTLE",
+        "성",
+        "The old ___ has four stone towers.",
+        "오래된 성에는 돌탑이 네 개 있어요."
+      ],
+      [
+        "KING",
+        "왕",
+        "The ___ wears a golden crown.",
+        "왕은 금빛 왕관을 쓰고 있어요."
+      ],
+      [
+        "QUEEN",
+        "여왕",
+        "The ___ rules the land with care.",
+        "여왕은 정성껏 나라를 다스려요."
+      ],
+      [
+        "PRINCE",
+        "왕자",
+        "The young ___ is the king’s son.",
+        "어린 왕자는 왕의 아들이에요."
+      ],
+      [
+        "CROWN",
+        "왕관",
+        "A jewel sparkles in the royal ___.",
+        "왕관에 박힌 보석이 반짝여요."
+      ],
+      [
+        "WALL",
+        "벽",
+        "A stone ___ surrounds the castle.",
+        "돌로 된 벽이 성을 둘러싸고 있어요."
+      ],
+      [
+        "KEY",
+        "열쇠",
+        "This ___ opens the tower door.",
+        "이 열쇠는 탑의 문을 열어요."
+      ],
+      [
+        "GOLD",
+        "금",
+        "The royal ring is made of ___.",
+        "왕실의 반지는 금으로 만들었어요."
+      ],
+      [
+        "FLAG",
+        "깃발",
+        "A red ___ waves above the gate.",
+        "대문 위에서 빨간 깃발이 펄럭여요."
+      ],
+      [
+        "STONE",
+        "돌",
+        "The steps are carved from ___.",
+        "계단은 돌을 깎아 만들었어요."
+      ],
+      [
+        "PALACE",
+        "궁전",
+        "The royal family lives in the ___.",
+        "왕실 가족은 궁전에 살아요."
+      ],
+      [
+        "DOOR",
+        "문",
+        "We knock on the wooden ___ to the hall.",
+        "우리는 큰 방으로 이어지는 나무 문을 두드려요."
+      ]
+    ]
+  }
+]

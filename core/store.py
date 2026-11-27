@@ -239,9 +239,24 @@ CREATE INDEX IF NOT EXISTS idx_goal_results_goal    ON goal_results(goal_id);
 CREATE INDEX IF NOT EXISTS idx_goal_results_profile ON goal_results(profile_id)
 """
 
+_TRAIL_SCHEMA = """
+CREATE TABLE IF NOT EXISTS trail_results (
+    id TEXT PRIMARY KEY,
+    profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    course INTEGER NOT NULL,
+    score INTEGER NOT NULL,
+    words TEXT NOT NULL,
+    review TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_trail_profile ON trail_results(profile_id, created_at DESC);
+"""
+SCHEMA = SCHEMA.rstrip().rstrip(";") + ";\n" + _TRAIL_SCHEMA
+PG_SCHEMA = PG_SCHEMA.rstrip().rstrip(";") + ";\n" + _TRAIL_SCHEMA
+
 # 옛 데이터를 옮길 때 쓰는, 부모 → 자식 순서의 테이블 목록.
 TABLES = ("classes", "profiles", "sessions", "messages", "memories", "learning_log",
-          "goals", "goal_results")
+          "goals", "goal_results", "trail_results")
 # 자동 번호(id)를 쓰는 테이블. 옮긴 뒤 다음 번호를 맞춰줘야 합니다.
 IDENTITY_TABLES = ("classes", "profiles", "messages", "memories", "learning_log", "goals")
 
@@ -1149,7 +1164,28 @@ def goal_results_for_profile(profile_id: int) -> list[dict]:
 # 이름 함수가 대신 처리합니다. 부르는 쪽(app.py 등)은 아무것도 바꾸지 않아도 됩니다.
 # 설정은 호출할 때마다 확인하므로, 실행 중에 환경변수를 바꿔도 따라갑니다.
 
+def save_trail_result(profile_id: int, result: dict) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO trail_results (id,profile_id,course,score,words,review,created_at)"
+            " VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
+            (result["id"], profile_id, result["course"], result["score"],
+             json.dumps(result["words"]), json.dumps(result["review"]), now()),
+        )
+
+
+def trail_results(profile_id: int) -> list[dict]:
+    with connect() as conn:
+        rows = _rows(conn.execute("SELECT * FROM trail_results WHERE profile_id=?"
+                                  " ORDER BY created_at DESC,id", (profile_id,)))
+    for row in rows:
+        for key in ("words", "review"):
+            row[key] = json.loads(row[key])
+    return rows
+
+
 _FIRESTORE_FUNCTIONS = (
+    "save_trail_result", "trail_results",
     "init_db", "list_profiles", "get_profile", "create_profile",
     "verify_profile_password", "set_profile_password", "touch_profile",
     "delete_profile", "start_session", "end_session", "list_sessions",

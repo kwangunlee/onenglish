@@ -177,7 +177,7 @@ def main() -> int:
     at4.session_state["screen"] = "admin"
     at4.run()
     no_exception(at4, "오류 없이 렌더링")
-    check("비밀번호 미설정이면 닫힘", not at4.session_state.get("admin_ok")
+    check("비밀번호 미설정이면 닫힘", not at4.session_state.filtered_state.get("admin_ok")
           and len(at4.error) > 0)
 
     os.environ["ADMIN_PASSWORD"] = "admin1234"
@@ -185,16 +185,16 @@ def main() -> int:
     at5.session_state["screen"] = "admin"
     at5.run()
     no_exception(at5, "비밀번호 설정 후 렌더링")
-    check("아직 안 열림", not at5.session_state.get("admin_ok"))
+    check("아직 안 열림", not at5.session_state.filtered_state.get("admin_ok"))
     box = field(at5, "관리자 비밀번호")
     check("관리자 비밀번호 칸 있음", box is not None)
     if box is not None:
         box.set_value("틀린값")
         click(at5, "들어가기", "틀린 비밀번호 제출")
-        check("틀린 비밀번호 거부", not at5.session_state.get("admin_ok"))
+        check("틀린 비밀번호 거부", not at5.session_state.filtered_state.get("admin_ok"))
         field(at5, "관리자 비밀번호").set_value("admin1234")
         click(at5, "들어가기", "맞는 비밀번호 제출")
-        check("맞는 비밀번호로 열림", bool(at5.session_state.get("admin_ok")))
+        check("맞는 비밀번호로 열림", bool(at5.session_state.filtered_state.get("admin_ok")))
         no_exception(at5, "관리자 화면 오류 없음")
     os.environ.pop("ADMIN_PASSWORD", None)
 

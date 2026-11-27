@@ -59,7 +59,7 @@ if not _running_under_streamlit():
 st.set_page_config(
     page_title="OnEnglish",
     page_icon="🌙",
-    layout="wide" if st.session_state.get("screen") == "admin" else "centered",
+    layout="wide" if st.session_state.get("screen") in ("admin", "trails") else "centered",
     initial_sidebar_state="expanded" if st.session_state.get("screen") == "admin" else "collapsed",
 )
 
@@ -405,6 +405,9 @@ def screen_characters() -> None:
     show_flash()
 
     characters = packs.characters_for_level(store.effective_level(profile))
+    if st.button("Word Trails · 단어 탐험과 내 점수판", width="stretch"):
+        st.session_state.pop("trail_session", None)
+        go("trails")
     if not characters:
         st.error("사용할 수 있는 캐릭터가 없어요. data/packs/ 폴더를 확인해 주세요.")
         return
@@ -433,6 +436,16 @@ def screen_characters() -> None:
         go("profiles")
     if right.button("기록 보기", width="stretch"):
         open_records()
+
+
+def screen_trails() -> None:
+    profile = st.session_state.profile
+    if not profile:
+        go("profiles")
+    if st.button("← 활동 선택"):
+        go("characters")
+    import trail_ui
+    trail_ui.screen(profile)
 
 
 def start_chat(character_id: str) -> None:
@@ -1011,6 +1024,7 @@ def main() -> None:
     screens = {
         "profiles": screen_profiles,
         "characters": screen_characters,
+        "trails": screen_trails,
         "chat": screen_chat,
         "records": screen_records,
         "parent": screen_parent_gate,

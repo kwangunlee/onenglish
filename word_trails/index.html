@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Word Trails · On English</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="landscape.js"></script>
+  <script defer src="bridge.js"></script>
+  <script defer src="game.js"></script>
+</head>
+<body>
+  <header><div class="bar"><div class="brand"><span class="brand-mark" aria-hidden="true">✦</span> Word Trails</div>
+    <div class="tools"><button id="sound" aria-pressed="true">소리 켜짐</button><button id="help" aria-label="게임 방법">?</button></div>
+  </div></header>
+  <main>
+    <nav id="trails" aria-label="탐험 코스"></nav>
+    <p class="course-tip">코스를 누를 때마다 단어 6개로 새 퍼즐이 시작돼요.</p>
+    <section class="hero" aria-labelledby="title">
+      <canvas id="scenery" width="640" height="164" aria-hidden="true"></canvas>
+      <div class="hero-copy"><span id="edition"></span><h1 id="title" lang="en"></h1><p id="subtitle"></p></div>
+    </section>
+    <div class="play-layout">
+      <section class="paper board-paper">
+        <div class="section-head"><h2 id="board-title">단어 찾기</h2><span class="dimension" id="dimension"></span></div>
+        <p class="instruction" id="instruction"></p>
+        <div class="mobile-targets" id="targets" aria-label="찾을 단어"></div>
+        <div id="board" role="group" aria-label="알파벳 퍼즐" aria-describedby="instruction"></div>
+        <div id="study" hidden></div>
+        <div class="board-foot"><span id="feedback" role="status"></span><button class="quiet" id="hint">힌트 보기</button></div>
+      </section>
+      <aside class="paper notebook">
+        <div class="section-head"><h2>탐험 수첩</h2><strong id="count"></strong></div>
+        <div class="meter" aria-hidden="true"><i id="fill"></i></div>
+        <div id="words"></div>
+        <div class="specimen"><span lang="en">FIELD NOTE</span><p id="note" aria-live="polite"></p></div>
+      </aside>
+    </div>
+    <footer><b>ON ENGLISH</b><span>OpenAI가 만든 AI 음성</span></footer>
+  </main>
+  <dialog id="guide"><h2>탐험하는 방법</h2>
+    <p>수첩의 단어를 찾아 첫 글자에서 끝 글자까지 드래그하세요. 두 끝을 차례로 눌러도 돼요.</p>
+    <p>키보드로는 방향키로 이동하고 Enter 또는 스페이스로 양 끝을 선택해요. Esc를 누르면 선택이 풀려요.</p>
+    <p>각 코스는 단어 12개 중 6개를 뽑아요. 코스를 다시 누르면 새 판이 시작돼요. 완주 도장은 계속 간직할 수 있어요.</p>
+    <p>단어를 모두 찾으면 문장 복습이 열려요. 문장을 듣고 빈칸을 채워 보세요. ‘문장 다시 듣기’를 누르면 영어 문장 전체를 다시 들려줘요.</p>
+    <form method="dialog"><button class="primary">알겠어요</button></form>
+  </dialog>
+</body>
+</html>
